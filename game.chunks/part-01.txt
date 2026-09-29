@@ -1,0 +1,149 @@
+
+const GW=1672,GH=941;
+const YELLOW=0xffd447,PINK=0xff2d78,CYAN=0x19d7e7,DARK=0x090c12,MID=0x1a2130;
+const IS_TOUCH=('ontouchstart' in window)||(navigator.maxTouchPoints>0);
+const IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
+const IS_STANDALONE=window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone===true;
+
+async function requestGameFullscreen(){
+  const el=document.documentElement;
+  try{
+    if(document.fullscreenElement){await document.exitFullscreen();return true;}
+    if(el.requestFullscreen){await el.requestFullscreen({navigationUI:'hide'});return true;}
+    if(el.webkitRequestFullscreen){el.webkitRequestFullscreen();return true;}
+  }catch(e){}
+  return false;
+}
+
+
+
+const SAVE={
+  get(){try{return JSON.parse(localStorage.getItem('up_v9')||'{}')}catch(e){return{}}},
+  set(v){try{localStorage.setItem('up_v9',JSON.stringify(v))}catch(e){}}
+};
+
+let P=Object.assign({
+  tag:'REBELDE',
+  skin:'#C98A65',
+  shirt:'#F0ECE3',
+  mask:false,
+  spray:'#ff2d78',
+  muted:false,
+  missionComplete:false,
+  phase:1,
+  phase1Complete:false,
+  phase2Complete:false,
+  lastScore:0,
+  lastStars:0,
+  finalColors:['#ff2d78','#19d7e7','#ffd447']
+},SAVE.get());
+
+function panel(s,x,y,w,h,a=.93,stroke=0xffffff){
+  return s.add.rectangle(x,y,w,h,DARK,a).setStrokeStyle(2,stroke,.12);
+}
+function txt(s,x,y,t,size=20,col='#fff',bold=false){
+  return s.add.text(x,y,t,{fontFamily:'Arial',fontSize:`${size}px`,fontStyle:bold?'bold':'normal',color:col});
+}
+function btn(s,x,y,w,h,label,fill=YELLOW,col='#111',size=20){
+  const bg=s.add.rectangle(x,y,w,h,fill,1).setStrokeStyle(3,0xffffff,.13).setInteractive({useHandCursor:true});
+  const tx=txt(s,x,y,label,size,col,true).setOrigin(.5);
+  bg.on('pointerover',()=>{bg.setScale(1.02);AUDIO.hover()});
+  bg.on('pointerout',()=>bg.setScale(1));
+  bg.on('pointerdown',()=>AUDIO.click());
+  return {bg,tx,on:(e,f)=>bg.on(e,f)};
+}
+function hexNum(h){return Phaser.Display.Color.HexStringToColor(h).color}
+function addOrientationHint(scene){
+  if(!IS_TOUCH)return;
+  const update=()=>{
+    const portrait=window.innerHeight>window.innerWidth;
+    if(portrait){
+      if(!scene._rotateOverlay){
+        scene._rotateOverlay=scene.add.container(0,0).setDepth(20000);
+        const bg=scene.add.rectangle(GW/2,GH/2,GW,GH,0x05070a,.96);
+        const icon=txt(scene,GW/2,GH/2-55,'↻',86,'#ffd447',true).setOrigin(.5);
+        const title=txt(scene,GW/2,GH/2+35,'GIRE O IPHONE',34,'#fff',true).setOrigin(.5);
+        const sub=txt(scene,GW/2,GH/2+82,'O jogo foi feito para jogar na horizontal.',18,'#aeb7c8').setOrigin(.5);
+        scene._rotateOverlay.add([bg,icon,title,sub]);
+      }
+      scene._rotateOverlay.setVisible(true);
+    }else if(scene._rotateOverlay)scene._rotateOverlay.setVisible(false);
+  };
+  update();
+  scene.scale.on('resize',update);
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>scene.scale.off('resize',update));
+}
+
+function colorDistance(a,b){
+  const A=Phaser.Display.Color.HexStringToColor(a),B=Phaser.Display.Color.HexStringToColor(b);
+  return Math.hypot(A.red-B.red,A.green-B.green,A.blue-B.blue);
+}
+
+// ---------- ORIGINAL PROCEDURAL HIP-HOP AUDIO ----------
+class AudioEngine{
+  constructor(){
+    this.ctx=null;this.master=null;this.musicGain=null;this.fxGain=null;this.scene='menu';
+    this.unlocked=false;this.muted=!!P.muted;this.timer=null;this.step=0;this.toolLoop=null;
+  }
+  unlock(){
+    if(this.unlocked){if(this.ctx?.state==='suspended')this.ctx.resume();return}
+    const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+    this.ctx=new AC();this.master=this.ctx.createGain();this.musicGain=this.ctx.createGain();this.fxGain=this.ctx.createGain();
+    this.musicGain.gain.value=.19;this.fxGain.gain.value=.75;
+    this.musicGain.connect(this.master);this.fxGain.connect(this.master);this.master.connect(this.ctx.destination);
+    this.unlocked=true;this.applyMute();this.startBeat();
+  }
+  applyMute(){if(this.master)this.master.gain.value=this.muted?0:1}
+  toggleMute(){this.muted=!this.muted;P.muted=this.muted;SAVE.set(P);this.applyMute();return this.muted}
+  setScene(s){this.scene=s;this.step=0}
+  osc(freq,dur=.08,type='sine',vol=.08,when=0,dest=null){
+    if(!this.unlocked||this.muted)return;
+    const o=this.ctx.createOscillator(),g=this.ctx.createGain();
+    o.type=type;o.frequency.setValueAtTime(freq,this.ctx.currentTime+when);
+    g.gain.setValueAtTime(vol,this.ctx.currentTime+when);g.gain.exponentialRampToValueAtTime(.0001,this.ctx.currentTime+when+dur);
+    o.connect(g);g.connect(dest||this.fxGain);o.start(this.ctx.currentTime+when);o.stop(this.ctx.currentTime+when+dur+.03);
+  }
+  noise(dur=.06,vol=.04,filter=5000,dest=null){
+    if(!this.unlocked||this.muted)return;
+    const n=Math.floor(this.ctx.sampleRate*dur),b=this.ctx.createBuffer(1,n,this.ctx.sampleRate),d=b.getChannelData(0);
+    for(let i=0;i<n;i++)d[i]=Math.random()*2-1;
+    const s=this.ctx.createBufferSource(),f=this.ctx.createBiquadFilter(),g=this.ctx.createGain();
+    s.buffer=b;f.type='lowpass';f.frequency.value=filter;g.gain.value=vol;
+    s.connect(f);f.connect(g);g.connect(dest||this.fxGain);s.start();s.stop(this.ctx.currentTime+dur);
+  }
+  click(){this.unlock();this.osc(510,.045,'square',.032);this.osc(760,.04,'square',.022,.025)}
+  hover(){if(this.unlocked)this.osc(930,.022,'sine',.011)}
+  select(){this.unlock();this.osc(410,.05,'triangle',.04);this.osc(690,.08,'triangle',.034,.035)}
+  stepFx(){this.noise(.035,.03,1000);this.osc(100,.03,'sine',.02)}
+  dripFx(){this.osc(500,.035,'sine',.045);this.osc(200,.085,'sine',.028,.02)}
+  shake(){
+    this.unlock();
+    for(let i=0;i<7;i++){
+      setTimeout(()=>this.noise(.055,.06,4200),i*65);
+      setTimeout(()=>this.osc(900+Math.random()*260,.025,'square',.012),i*65);
+    }
+  }
+  siren(){
+    this.unlock();
+    for(let i=0;i<6;i++)this.osc(i%2?760:480,.18,'sawtooth',.032,i*.15);
+  }
+  whistle(){
+    this.unlock();
+    this.osc(1650,.16,'sine',.05);
+    this.osc(2050,.12,'sine',.045,.12);
+    this.osc(1500,.18,'sine',.04,.26);
+  }
+  startTool(kind){
+    this.unlock();this.stopTool();if(!this.ctx)return;
+    const n=2*this.ctx.sampleRate,b=this.ctx.createBuffer(1,n,this.ctx.sampleRate),d=b.getChannelData(0);
+    for(let i=0;i<n;i++)d[i]=Math.random()*2-1;
+    const s=this.ctx.createBufferSource(),f=this.ctx.createBiquadFilter(),g=this.ctx.createGain();
+    s.buffer=b;s.loop=true;
+    if(kind==='marker'){f.type='highpass';f.frequency.value=1350;g.gain.value=.035}
+    else if(kind==='drip'){f.type='bandpass';f.frequency.value=2400;g.gain.value=.07}
+    else{f.type='bandpass';f.frequency.value=3250;g.gain.value=.10}
+    s.connect(f);f.connect(g);g.connect(this.fxGain);s.start();this.toolLoop=s;
+  }
+  stopTool(){try{this.toolLoop?.stop()}catch(e){}this.toolLoop=null}
+  startBeat(){
+    cl
