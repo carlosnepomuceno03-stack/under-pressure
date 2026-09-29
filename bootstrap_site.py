@@ -31,7 +31,13 @@ for rel in FILES:
 parts=[]
 for i in range(1,7):
     parts.append((Path("payload")/f"v12-part-{i:02}.txt").read_text(encoding="utf-8").strip())
-(out/"game.js").write_bytes(gzip.decompress(base64.b64decode("".join(parts))))
+try:
+    (out/"game.js").write_bytes(gzip.decompress(base64.b64decode("".join(parts))))
+except Exception as e:
+    print(f"V12 payload is corrupt ({e}); keeping the currently deployed game.js")
+    req=Request(BASE+"game.js",headers={"User-Agent":"Mozilla/5.0"})
+    with urlopen(req,timeout=90) as r:
+        (out/"game.js").write_bytes(r.read())
 
 sw=out/"service-worker.js"
 if sw.exists():
