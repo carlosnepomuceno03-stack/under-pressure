@@ -4,16 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Under Pressure 3D Prototype</title>
-  <link rel="stylesheet" href="./3d-prototype/style.css?v=30" />
+  <link rel="stylesheet" href="./3d-prototype/style.css?v=32" />
 </head>
 <body>
   <div id="hud">
-    <div class="brand">UNDER PRESSURE 3D</div>
+    <div class="brandRow"><div class="brand">UNDER PRESSURE 3D</div><button id="viewToggle">1P</button></div>
     <div class="hint">WASD = andar • Shift = correr • Ctrl/C = agachar • Espaço = pular/escalar • E = ataque/takedown • R = pesado • Q = esquiva</div>
   <div id="objective"><span>OBJETIVO</span> <b id="objectiveText">Alcance o mural pelos telhados, rua ou campão</b></div>
   <div id="statusRow">
     <div id="alertWrap" data-state="SAFE"><span id="alertText">OCULTO</span><i><b id="alertBar"></b></i></div>
-    <div id="collectibles">ITENS 0/4</div><div id="stealthState">EM PÉ</div>
+    <div id="collectibles">ITENS 0/4</div><div id="founderCount">FUNDADORES 0/4</div><div id="stealthState">EM PÉ</div>
   </div>
   <div id="buildTag">...</div>
   <div id="mouseHint">CLIQUE NO JOGO PARA CAPTURAR O MOUSE</div>
@@ -30,6 +30,7 @@
   <div id="graffitiMode">
     <div class="paintPanel">
       <div class="paintTop"><strong>PIECE MODE</strong><span id="repText">REP 0</span></div>
+      <div id="artGallery"><div class="galleryTitle">ESCOLHER ARTE</div><div id="artGalleryList"></div></div>
       <div class="paintStats">
         <label>COBERTURA <i><b id="coverageBar"></b></i><span id="coverageText">0%</span></label>
         <label>PRESSÃO <i><b id="pressureBar"></b></i><span id="pressureText">100%</span></label>
@@ -60,7 +61,7 @@
 
   <canvas id="renderCanvas"></canvas>
   <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="./3d-prototype/main.js?v=31"></script>
-  <script src="./3d-prototype/game-systems.js?v=31"></script>
+  <script src="./3d-prototype/main.js?v=32"></script>
+  <script src="./3d-prototype/game-systems.js?v=32"></script>
 </body>
 </html>
