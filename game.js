@@ -375,11 +375,27 @@ class Custom extends Phaser.Scene{
       }
       SAVE.set(P);
 
-      // Yield one frame on touch devices so iOS can close the keyboard / release DOM focus
-      // before constructing the much larger map scene.
-      this.time.delayedCall(IS_TOUCH?90:10,()=>{
-        this.scene.start(this.next);
-      });
+      // Release the HTML input before changing scenes. Some iOS Safari builds
+      // can leave Phaser's DOM overlay focused and stall the transition.
+      try{this.tagDom?.destroy()}catch(e){}
+      try{document.activeElement?.blur?.()}catch(e){}
+
+      // The mobile map is now lightweight enough to open immediately.
+      // Avoid Phaser delayedCall here because the Custom scene can stop ticking
+      // while Safari is dismissing the input/keyboard.
+      const target=this.next;
+      if(IS_TOUCH){
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{
+          try{this.scene.start(target)}
+          catch(err){
+            this._startingGame=false;
+            go.bg.setInteractive({useHandCursor:true});
+            go.tx.setText('TENTAR NOVAMENTE');
+          }
+        }));
+      }else{
+        this.scene.start(target);
+      }
     });
     this.input.keyboard.on('keydown-ESC',()=>this.scene.start('Menu'));
   }
