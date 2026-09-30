@@ -58,11 +58,11 @@
   };
 
   const ART_CATALOG=[
-    {id:'nepo_throw',name:'NEPO THROW',type:'THROW-UP',difficulty:1,rep:1.00,desc:'Rápido, simples e direto.'},
-    {id:'gate_piece',name:'PORTÃO 26',type:'PIECE',difficulty:3,rep:1.25,desc:'Peça colorida com preenchimento grande.'},
-    {id:'alien_jam',name:'ALIEN JAM',type:'MURAL',difficulty:4,rep:1.45,desc:'Peça grande com personagem alien.'},
-    {id:'crew_wall',name:'CREW WALL',type:'MURAL',difficulty:5,rep:1.65,desc:'Mural pesado de crew.'},
-    {id:'blackbook',name:'BLACKBOOK WILD',type:'PIECE',difficulty:4,rep:1.40,desc:'Wildstyle inspirado em sketch de blackbook.'}
+    {id:'nepo_throw',name:'NEPO THROW',type:'THROW-UP',difficulty:1,rep:1.00,img:'./3d-prototype/assets/graffiti/nepo_throw.webp',desc:'Throw verde fotografado no muro.'},
+    {id:'gate_piece',name:'PORTÃO 26',type:'PIECE',difficulty:3,rep:1.25,img:'./3d-prototype/assets/graffiti/portao26.webp',desc:'Peça real do portão com degradê.'},
+    {id:'alien_jam',name:'ALIEN JAM',type:'MURAL',difficulty:4,rep:1.45,img:'./3d-prototype/assets/graffiti/alien_jam.webp',desc:'Mural real com personagem alien.'},
+    {id:'crew_wall',name:'CREW WALL',type:'MURAL',difficulty:5,rep:1.65,img:'./3d-prototype/assets/graffiti/crew_wall.webp',desc:'Mural real de crew no muro branco.'},
+    {id:'blackbook',name:'BLACKBOOK WILD',type:'PIECE',difficulty:4,rep:1.40,img:'./3d-prototype/assets/graffiti/blackbook.webp',desc:'Sketch original fotografado no blackbook.'}
   ];
 
   function renderGallery(){
@@ -72,7 +72,7 @@
       const b=document.createElement('button');
       b.className='artCard'+(STATE.selectedArt===art.id?' active':'');
       b.dataset.art=art.id;
-      b.innerHTML='<div class="artThumb '+art.id+'"></div><strong>'+art.name+'</strong><span>'+art.type+' • DIF '+art.difficulty+'</span><small>'+art.desc+'</small>';
+      b.innerHTML='<img class="artThumb" src="'+art.img+'" alt=""><strong>'+art.name+'</strong><span>'+art.type+' • DIF '+art.difficulty+'</span><small>'+art.desc+'</small>';
       b.addEventListener('click',()=>{
         STATE.selectedArt=art.id;
         paintInitialized=false;
@@ -308,19 +308,20 @@
             if(!g.down&&BABYLON.Vector3.Distance(player.position,g.root.position)<=range+.35){
               hitGuard(g,dmg,stun);
             }
-          },type==='heavy'?210:115);
+          },type==='heavy'?340:165);
         }
       }
     }
-    setTimeout(()=>STATE.attacking=false,type==='heavy'?470:290);
+    setTimeout(()=>STATE.attacking=false,type==='heavy'?740:440);
   }
   function doDodge(){
     if(STATE.dodging||STATE.graffitiOpen||STATE.caught)return;
+    const dir=G.getMoveIntent?.()||G.getForward?.()||new BABYLON.Vector3(0,0,1);
+    if(!G.startRoll?.(dir))return;
     STATE.dodging=true;
-    const dir=G.getMoveDirection?.()||G.getForward?.()||new BABYLON.Vector3(0,0,1);
-    try{ player.moveWithCollisions(dir.scale(1.9)); }catch(e){}
-    setTimeout(()=>STATE.dodging=false,420);
+    setTimeout(()=>STATE.dodging=false,610);
   }
+
   function stealthTakedown(){
     if(STATE.graffitiOpen||STATE.alertState==='ALERT')return false;
     let best=null,bestD=1.6;
@@ -434,60 +435,69 @@
   const targetCells=new Set(),coveredCells=new Set();
   const GRID_X=64,GRID_Y=36;
 
-  function drawGuide(){
+  const artImageCache=new Map();
+  function getArtImage(art){
+    if(artImageCache.has(art.id))return Promise.resolve(artImageCache.get(art.id));
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.onload=()=>{artImageCache.set(art.id,img);resolve(img);};
+      img.onerror=reject;
+      img.src=art.img;
+    });
+  }
+
+  async function drawGuide(){
     if(!ui.guide)return;
     ui.guide.width=1024;ui.guide.height=576;
     guideCtx=ui.guide.getContext('2d');
     guideCtx.clearRect(0,0,1024,576);
-    guideCtx.save();
-    guideCtx.textAlign='center';
-    guideCtx.textBaseline='middle';
-    guideCtx.lineJoin='round';
+    targetCells.clear();
 
     const art=ART_CATALOG.find(a=>a.id===STATE.selectedArt)||ART_CATALOG[0];
-    const presets={
-      nepo_throw:{text:'NEPO',size:220,slant:-.12},
-      gate_piece:{text:'26',size:260,slant:-.04},
-      alien_jam:{text:'ALIEN',size:190,slant:.05},
-      crew_wall:{text:'TDG',size:240,slant:-.08},
-      blackbook:{text:'WILD',size:210,slant:.10}
-    };
-    const p=presets[art.id]||presets.nepo_throw;
+    try{
+      const img=await getArtImage(art);
+      const scale=Math.min(960/img.width,520/img.height);
+      const w=img.width*scale,h=img.height*scale;
+      const x=(1024-w)/2,y=(576-h)/2;
 
-    guideCtx.translate(512,292);
-    guideCtx.transform(1,0,p.slant,1,0,0);
-    guideCtx.font='900 '+p.size+'px Arial Black, Arial';
-    guideCtx.lineWidth=34;
-    guideCtx.strokeStyle='rgba(18,18,22,.72)';
-    guideCtx.strokeText(p.text,0,0);
-    guideCtx.lineWidth=9;
-    guideCtx.strokeStyle='rgba(255,255,255,.78)';
-    guideCtx.strokeText(p.text,0,0);
+      // The uploaded graffiti photo is the actual tracing reference.
+      guideCtx.save();
+      guideCtx.globalAlpha=.52;
+      guideCtx.filter='saturate(.82) contrast(1.10)';
+      guideCtx.drawImage(img,x,y,w,h);
+      guideCtx.restore();
 
-    // Secondary flourishes to stop every choice feeling identical.
-    guideCtx.lineWidth=14;
-    guideCtx.strokeStyle='rgba(18,18,22,.50)';
-    if(art.id==='alien_jam'){
-      guideCtx.beginPath();guideCtx.arc(265,-40,74,0,Math.PI*2);guideCtx.stroke();
-      guideCtx.beginPath();guideCtx.moveTo(225,-10);guideCtx.lineTo(305,45);guideCtx.stroke();
-    }else if(art.id==='blackbook'){
-      for(const x of [-330,330]){guideCtx.beginPath();guideCtx.moveTo(x,-80);guideCtx.lineTo(x+(x<0?-85:85),0);guideCtx.lineTo(x,80);guideCtx.stroke();}
-    }else if(art.id==='gate_piece'){
-      guideCtx.beginPath();guideCtx.moveTo(-320,100);guideCtx.lineTo(0,155);guideCtx.lineTo(320,100);guideCtx.stroke();
-    }else if(art.id==='crew_wall'){
-      guideCtx.beginPath();guideCtx.arc(0,0,250,Math.PI*.12,Math.PI*.88);guideCtx.stroke();
-    }
-    guideCtx.restore();
+      const tmp=document.createElement('canvas');
+      tmp.width=1024;tmp.height=576;
+      const tc=tmp.getContext('2d');
+      tc.drawImage(img,x,y,w,h);
+      const data=tc.getImageData(0,0,1024,576).data;
 
-    targetCells.clear();
-    const img=guideCtx.getImageData(0,0,1024,576).data;
-    for(let gy=0;gy<GRID_Y;gy++){
-      for(let gx=0;gx<GRID_X;gx++){
-        const px=Math.floor((gx+.5)*1024/GRID_X);
-        const py=Math.floor((gy+.5)*576/GRID_Y);
-        const a=img[(py*1024+px)*4+3];
-        if(a>35)targetCells.add(gx+','+gy);
+      for(let gy=0;gy<GRID_Y;gy++){
+        for(let gx=0;gx<GRID_X;gx++){
+          const px=Math.floor((gx+.5)*1024/GRID_X);
+          const py=Math.floor((gy+.5)*576/GRID_Y);
+          if(px<x||px>x+w||py<y||py>y+h)continue;
+          const idx=(py*1024+px)*4;
+          const r=data[idx]/255,g=data[idx+1]/255,b=data[idx+2]/255;
+          const max=Math.max(r,g,b),min=Math.min(r,g,b);
+          const sat=max-min;
+          const lum=.2126*r+.7152*g+.0722*b;
+          if(sat>.16||lum<.30)targetCells.add(gx+','+gy);
+        }
       }
+
+      if(targetCells.size<120){
+        for(let gy=5;gy<GRID_Y-5;gy++)for(let gx=8;gx<GRID_X-8;gx++)targetCells.add(gx+','+gy);
+      }
+      updateGraffitiHUD();
+    }catch(err){
+      guideCtx.fillStyle='rgba(30,30,34,.55)';
+      guideCtx.font='900 120px Arial Black,Arial';
+      guideCtx.textAlign='center';guideCtx.textBaseline='middle';
+      guideCtx.fillText(art.name,512,288);
+      for(let gy=7;gy<GRID_Y-7;gy++)for(let gx=10;gx<GRID_X-10;gx++)targetCells.add(gx+','+gy);
+      updateGraffitiHUD();
     }
   }
 
@@ -671,6 +681,16 @@
     }
   };
 
+  // Standard controller: B / east face button = directional roll.
+  let padDodgeWasDown=false;
+  function pollGamepadDodge(){
+    const pads=navigator.getGamepads?.()||[];
+    const pad=Array.from(pads).find(Boolean);
+    const down=!!pad?.buttons?.[1]?.pressed;
+    if(down&&!padDodgeWasDown)doDodge();
+    padDodgeWasDown=down;
+  }
+
   // combat controls
   window.addEventListener('keydown',e=>{
     if(e.code==='KeyE'){
@@ -771,6 +791,7 @@
   // If graffiti overlay is open guards still visually idle; player controls remain locked.
   scene.onBeforeRenderObservable.add(()=>{
     const dt=Math.min(.033,G.engine.getDeltaTime()/1000);
+    pollGamepadDodge();
     updatePickups(dt);
     updateFounders(dt);
     updateMission();
