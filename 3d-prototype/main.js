@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='PARKOUR V15';
+const BUILD='PARKOUR V16';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -101,35 +101,28 @@ camera.minZ=.1;
 let camYaw=0;
 let camPitch=.16;
 let camDistance=7.2;
-let lastMouseX=null;
-let lastMouseY=null;
+let pointerLocked=false;
 
-const CAM_X=.0042;
-const CAM_Y=.0034;
-
-document.addEventListener('mousemove',e=>{
-  if(lastMouseX===null){
-    lastMouseX=e.clientX;
-    lastMouseY=e.clientY;
-    return;
-  }
-
-  const dx=e.clientX-lastMouseX;
-  const dy=e.clientY-lastMouseY;
-  lastMouseX=e.clientX;
-  lastMouseY=e.clientY;
-
-  if(Math.abs(dx)>140||Math.abs(dy)>140)return;
-
-  // Natural PC controls:
-  // mouse right -> look right
-  // mouse up    -> look up
-  camYaw-=dx*CAM_X;
-  camPitch=BABYLON.Scalar.Clamp(camPitch+dy*CAM_Y,-.38,.48);
+function lockMouse(){
+  if(document.pointerLockElement!==canvas) canvas.requestPointerLock?.();
+}
+canvas.addEventListener('click',lockMouse);
+document.addEventListener('pointerlockchange',()=>{
+  pointerLocked=document.pointerLockElement===canvas;
+  document.body.classList.toggle('mouse-locked',pointerLocked);
 });
 
-window.addEventListener('blur',()=>{lastMouseX=null;lastMouseY=null});
-document.addEventListener('mouseleave',()=>{lastMouseX=null;lastMouseY=null});
+const CAM_X=.0036;
+const CAM_Y=.0028;
+
+document.addEventListener('mousemove',e=>{
+  if(!pointerLocked)return;
+
+  // Pointer-lock gives infinite mouse movement without screen-edge glitches.
+  // Natural third-person direction.
+  camYaw-=e.movementX*CAM_X;
+  camPitch=BABYLON.Scalar.Clamp(camPitch+e.movementY*CAM_Y,-.38,.48);
+});
 
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
@@ -257,29 +250,43 @@ scene.onBeforeRenderObservable.add(()=>{
   const spaceHeld=!!keys.Space;
   const heldMs=spaceHeld?(performance.now()-spacePressedAt):0;
   const wallHit=spaceHeld?wallProbe(.5,1.18):null;
-  const canGrab=wallHit&&wallHit.hit&&wallHit.pickedMesh?.metadata?.climbable!==false;
-  climbing=!!(canGrab&&heldMs>120&&parkourCooldown<=0);
+  let canGrab=false;
+  let climbData=null;
 
-  if(climbing){
+  if(wallHit&&wallHit.hit&&wallHit.pickedMesh?.metadata?.climbable===true){
     const mesh=wallHit.pickedMesh;
     const top=mesh.getBoundingInfo().boundingBox.maximumWorld.y;
     const feet=player.position.y-1.05;
     const obstacle=top-feet;
-    const dir=wallHit.dir.normalize();
 
-    // Low obstacle: mantle only if there is a real top/landing surface.
-    if(obstacle>0&&obstacle<1.35){
+    // Critical anti-snap rule:
+    // the player must actually be BELOW the ledge.
+    // If already standing on/above the object, climbing is disabled.
+    if(obstacle>.28 && player.position.y < top+.72){
+      canGrab=true;
+      climbData={mesh,top,feet,obstacle,dir:wallHit.dir.normalize()};
+    }
+  }
+
+  climbing=!!(canGrab&&heldMs>120&&parkourCooldown<=0);
+
+  if(climbing){
+    const {mesh,top,feet,obstacle,dir}=climbData;
+
+    // Low obstacle: only mantle if clearly approaching from below.
+    // No snapping when the player is already at top height / near an edge.
+    if(obstacle>.28&&obstacle<1.35){
       const landing=getMantleLanding(mesh,dir);
-      if(landing){
+      if(landing && landing.y > player.position.y+.12){
         player.position.copyFrom(landing);
-        vy=.15;
+        vy=.08;
         climbing=false;
-        parkourCooldown=.28;
+        parkourCooldown=.42;
         keys.Space=false;
         spaceWasDown=false;
       }else{
-        // No support above: do not drop/teleport into empty space.
-        vy=0;
+        climbing=false;
+        vy=Math.min(vy,0);
       }
     }else{
       // Taller surface: continuously climb while Space is held.
@@ -288,7 +295,7 @@ scene.onBeforeRenderObservable.add(()=>{
       player.moveWithCollisions(dir.scale(.5*dt));
 
       // Mantle only after confirming there is a surface to stand on.
-      if(player.position.y+1.0>=top&&hasHeadClearance(dir)){
+      if(player.position.y+1.0>=top&&player.position.y<top+.72&&hasHeadClearance(dir)){
         const landing=getMantleLanding(mesh,dir);
         if(landing){
           player.position.copyFrom(landing);
