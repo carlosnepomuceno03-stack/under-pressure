@@ -97,16 +97,15 @@ camera.lowerBetaLimit=.7;camera.upperBetaLimit=1.35;
 camera.lockedTarget=player;
 
 // PC camera without click/drag.
-// The cursor position controls camera turn speed, like an edge-look system.
-// Move near screen center to stop rotating; move farther to rotate faster.
+// Cursor position gives a stable orbit offset instead of continuous spinning.
 let mouseNX=0,mouseNY=0;
 let mouseInside=false;
 canvas.addEventListener('mouseenter',()=>mouseInside=true);
 canvas.addEventListener('mouseleave',()=>{mouseInside=false;mouseNX=0;mouseNY=0;});
 canvas.addEventListener('mousemove',e=>{
   const r=canvas.getBoundingClientRect();
-  mouseNX=((e.clientX-r.left)/Math.max(1,r.width))*2-1;
-  mouseNY=((e.clientY-r.top)/Math.max(1,r.height))*2-1;
+  mouseNX=BABYLON.Scalar.Clamp(((e.clientX-r.left)/Math.max(1,r.width))*2-1,-1,1);
+  mouseNY=BABYLON.Scalar.Clamp(((e.clientY-r.top)/Math.max(1,r.height))*2-1,-1,1);
 });
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
@@ -175,14 +174,16 @@ scene.onBeforeRenderObservable.add(()=>{
   const dt=Math.min(.033,engine.getDeltaTime()/1000);
   parkourCooldown=Math.max(0,parkourCooldown-dt);
 
-  // Smooth camera without pointer lock or click.
-  if(mouseInside){
-    const dead=.12;
-    const sx=Math.abs(mouseNX)<dead?0:(Math.sign(mouseNX)*(Math.abs(mouseNX)-dead)/(1-dead));
-    const sy=Math.abs(mouseNY)<dead?0:(Math.sign(mouseNY)*(Math.abs(mouseNY)-dead)/(1-dead));
-    camera.alpha-=sx*1.9*dt;
-    camera.beta=BABYLON.Scalar.Clamp(camera.beta+sy*1.25*dt,.72,1.30);
-  }
+  // Stable third-person camera: no drift, no endless spin at screen edges.
+  // Center cursor = camera behind player; move cursor = temporary orbit around player.
+  const yawBehind=player.rotation.y+Math.PI;
+  const desiredAlpha=yawBehind-(mouseInside?mouseNX*.95:0);
+  const desiredBeta=BABYLON.Scalar.Clamp(1.04+(mouseInside?mouseNY*.20:0),.78,1.26);
+
+  // shortest-angle interpolation for alpha
+  let da=((desiredAlpha-camera.alpha+Math.PI)%(Math.PI*2)+Math.PI)%(Math.PI*2)-Math.PI;
+  camera.alpha+=da*(1-Math.pow(.002,dt));
+  camera.beta=BABYLON.Scalar.Lerp(camera.beta,desiredBeta,1-Math.pow(.002,dt));
 
   const f=forwardFlat(),r=rightFlat();
   let move=BABYLON.Vector3.Zero();
