@@ -1,13 +1,13 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='ENVIRONMENT ART V39';
+const BUILD='PROTOTYPE MATCH V40';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
 const scene=new BABYLON.Scene(engine);
-scene.clearColor=new BABYLON.Color4(0.055,0.075,0.145,1);
+scene.clearColor=new BABYLON.Color4(.025,.035,.075,1);
 scene.fogMode=BABYLON.Scene.FOGMODE_EXP2;
 scene.fogDensity=.0048;
-scene.fogColor=new BABYLON.Color3(.09,.10,.16);
+scene.fogColor=new BABYLON.Color3(.045,.06,.12);
 scene.imageProcessingConfiguration.exposure=1.14;
 scene.imageProcessingConfiguration.contrast=1.26;
 scene.imageProcessingConfiguration.vignetteEnabled=true;
@@ -17,14 +17,14 @@ scene.imageProcessingConfiguration.vignetteColor=new BABYLON.Color4(.02,.025,.04
 scene.imageProcessingConfiguration.vignetteBlendMode=BABYLON.ImageProcessingConfiguration.VIGNETTEMODE_MULTIPLY;
 
 const light=new BABYLON.HemisphericLight('hemi',new BABYLON.Vector3(0,1,0),scene);
-light.intensity=.68;
-light.diffuse=new BABYLON.Color3(.48,.57,.78);
+light.intensity=.46;
+light.diffuse=new BABYLON.Color3(.34,.44,.72);
 light.groundColor=new BABYLON.Color3(.22,.12,.10);
 
 const sun=new BABYLON.DirectionalLight('sun',new BABYLON.Vector3(-.45,-1,.35),scene);
 sun.position=new BABYLON.Vector3(25,35,-20);
-sun.intensity=.72;
-sun.diffuse=new BABYLON.Color3(1,.58,.34);
+sun.intensity=.82;
+sun.diffuse=new BABYLON.Color3(1,.48,.20);
 
 // Stylized sunset sky dome — cheap, browser/mobile friendly.
 const skyTex=new BABYLON.DynamicTexture('skyTex',{width:1024,height:512},scene,false);
@@ -60,24 +60,24 @@ const mat=(name,hex)=>{
   m.specularColor=new BABYLON.Color3(.05,.05,.05);
   return m;
 };
-const asphalt=mat('asphalt','#252936');
+const asphalt=mat('asphalt','#151923');
 const dirt=mat('dirt','#8e472d');
 const concrete=mat('concrete','#8d8982');
-const wallMat=mat('wall','#81786f');
+const wallMat=mat('wall','#3f424b');
 const roofMat=mat('roof','#63382f');
 const accent=mat('accent','#14d7e8');
 const playerMat=mat('player','#d7d4c7');
 
-const wallLight=mat('wallLight','#9d9285');
-const wallDark=mat('wallDark','#655f59');
-const brickMat=mat('brick','#7d4436');
+const wallLight=mat('wallLight','#67656b');
+const wallDark=mat('wallDark','#262932');
+const brickMat=mat('brick','#4c3337');
 const metalMat=mat('metal','#4f555c');
 const woodMat=mat('wood','#6d4934');
 const plantMat=mat('plant','#304b2d');
 const plantLight=mat('plantLight','#46633a');
 const tireMat=mat('tire','#15171a');
-const bluePaint=mat('bluePaint','#17667a');
-const yellowPaint=mat('yellowPaint','#c78c2b');
+const bluePaint=mat('bluePaint','#13516d');
+const yellowPaint=mat('yellowPaint','#f1bd22');
 const curbMat=mat('curb','#c1bdb4');
 
 function emissiveMat(name,hex,intensity=1){
@@ -107,15 +107,35 @@ function makeSurfaceTexture(name,bg,marks=[]){
   tex.uScale=3;tex.vScale=6;
   return tex;
 }
-asphalt.diffuseTexture=makeSurfaceTexture('asphaltTex','#242732',['#30333d','#17191f','#3b3d46']);
+asphalt.diffuseTexture=makeSurfaceTexture('asphaltTex','#171b26',['#252b38','#0d1016','#343847']);
+asphalt.specularColor=new BABYLON.Color3(.52,.48,.44);
+asphalt.specularPower=96;
 dirt.diffuseTexture=makeSurfaceTexture('dirtTex','#8d452e',['#6d3424','#a85a3d','#7a3a27']);
-wallMat.diffuseTexture=makeSurfaceTexture('wallTex','#81786f',['#6c645d','#958a80','#5e5752']);
-wallLight.diffuseTexture=makeSurfaceTexture('wallLightTex','#9c9184',['#b0a398','#7e766f','#6d655e']);
+wallMat.diffuseTexture=makeSurfaceTexture('wallTex','#3e424c',['#2b303a','#54555e','#20242c']);
+wallLight.diffuseTexture=makeSurfaceTexture('wallLightTex','#67666c',['#79777d','#4c4e55','#363941']);
 concrete.diffuseTexture=makeSurfaceTexture('concreteTex','#8b8781',['#77736e','#a09a92','#66625e']);
 roofMat.diffuseTexture=makeSurfaceTexture('roofTex','#61362f',['#7b493e','#4c2a25','#8b5143']);
 
 const glowLayer=new BABYLON.GlowLayer('worldGlow',scene,{blurKernelSize:16});
 glowLayer.intensity=.22;
+glowLayer.intensity=.34;
+
+const puddleWarm=mat('puddleWarm','#ff8c2b');puddleWarm.alpha=.18;puddleWarm.specularColor=new BABYLON.Color3(1,.72,.42);puddleWarm.specularPower=128;
+const puddlePink=mat('puddlePink','#ff2e9e');puddlePink.alpha=.15;puddlePink.specularColor=new BABYLON.Color3(1,.3,.65);puddlePink.specularPower=128;
+const puddleCyan=mat('puddleCyan','#1bc7e8');puddleCyan.alpha=.13;puddleCyan.specularColor=new BABYLON.Color3(.35,.8,1);puddleCyan.specularPower=128;
+
+function addPuddle(name,x,z,w,d,material,rot=0){
+  const p=BABYLON.MeshBuilder.CreatePlane(name,{width:w,height:d},scene);
+  p.rotation.x=Math.PI/2;p.rotation.z=rot;p.position.set(x,.175,z);
+  p.material=material;p.checkCollisions=false;p.isPickable=false;return p;
+}
+for(const p of [
+  [-15,-25,5.5,1.1,puddleWarm,.08],[-14,-17,3.6,.8,puddlePink,-.12],
+  [-16,-8,5.0,1.0,puddleWarm,.03],[-13,2,3.2,.7,puddleCyan,.15],
+  [-16,11,4.8,.9,puddleWarm,-.07],[-14,20,3.6,.75,puddlePink,.10],
+  [-17,27,4.2,.8,puddleWarm,-.04]
+]) addPuddle('wet'+p[1],...p);
+
 
 function decalPlane(name,w,h,x,y,z,material,rotY=0){
   const p=BABYLON.MeshBuilder.CreatePlane(name,{width:w,height:h},scene);
@@ -552,7 +572,41 @@ for(const [x,y,z,w,d] of [[8,4.96,18,9.2,8.1],[18,6.96,8,10.2,9.1],[30,8.66,-3,1
   }
 }
 
-// ART PASS V38 — recognizable neighborhood identity
+// Prototype-match paint language: cyan/magenta/yellow splashes and TDG marks.
+function splashMat(name,color,alpha=.72){
+  const sm=mat(name,color);sm.alpha=alpha;sm.emissiveColor=BABYLON.Color3.FromHexString(color).scale(.12);return sm;
+}
+const sprayPink=splashMat('sprayPink','#e52c98',.80);
+const sprayCyan=splashMat('sprayCyan','#00b8d9',.78);
+const sprayYellow=splashMat('sprayYellow','#f5c21b',.82);
+
+for(const [name,x,y,z,w,h,material,rot] of [
+  ['spA',-25.70,3.0,-30,2.8,1.4,sprayPink,-Math.PI/2],
+  ['spB',-25.69,2.7,-13,2.1,1.0,sprayCyan,-Math.PI/2],
+  ['spC',-25.68,3.1,16,2.5,1.2,sprayPink,-Math.PI/2],
+  ['spD',3.39,2.8,18,2.2,1.0,sprayYellow,Math.PI/2],
+  ['spE',13.0,3.0,17.30,3.0,1.0,sprayCyan,0]
+]){
+  const p=decalPlane(name,w,h,x,y,z,material,rot);
+  p.scaling.x=1;p.scaling.y=.34;
+}
+
+function makeTagDecal(name,text,color,x,y,z,w=2.2,rotY=0){
+  const tex=new BABYLON.DynamicTexture(name+'Tex',{width:512,height:220},scene,false);
+  const c=tex.getContext();c.clearRect(0,0,512,220);
+  c.font='900 82px Impact, Arial Black, sans-serif';c.textAlign='center';c.textBaseline='middle';
+  c.strokeStyle='#111218';c.lineWidth=16;c.strokeText(text,256,110);
+  c.fillStyle=color;c.fillText(text,256,110);
+  for(let i=0;i<18;i++){c.fillRect((i*71)%512,180+(i%3)*8,6,18+(i%5)*8);}
+  tex.update();
+  const mm=new BABYLON.StandardMaterial(name+'Mat',scene);mm.diffuseTexture=tex;mm.opacityTexture=tex;mm.emissiveColor=BABYLON.Color3.FromHexString(color).scale(.18);mm.backFaceCulling=false;
+  return decalPlane(name,w,w*.43,x,y,z,mm,rotY);
+}
+makeTagDecal('tagTDG','TDG','#f5c21b',-25.67,2.0,-7,2.5,-Math.PI/2);
+makeTagDecal('tagNEPO','NEPO','#e52c98',-25.67,3.0,11,2.8,-Math.PI/2);
+makeTagDecal('tagRUA','RUA','#00b8d9',3.39,2.15,18,2.1,Math.PI/2);
+
+// // ART PASS V38 — recognizable neighborhood identity
 // Real crew pieces become part of the world instead of floating UI references.
 photoDecal('graffitiNepoWorld','./3d-prototype/assets/graffiti/nepo_throw.webp',4.6,2.6,-25.76,1.75,-24,-Math.PI/2);
 photoDecal('graffitiGateWorld','./3d-prototype/assets/graffiti/portao26.webp',5.1,3.05,-25.74,2.05,1,-Math.PI/2);
@@ -723,13 +777,13 @@ const rigRoot=new BABYLON.TransformNode('rigRoot',scene);
 rigRoot.parent=player;
 rigRoot.position.set(0,-.05,0);
 
-const rigMat=mat('rig','#d7d4c7');
-const rigDark=mat('rigDark','#22262c');
-const rigAccent=mat('rigAccent','#14d7e8');
+const rigMat=mat('rig','#f0ece3');
+const rigDark=mat('rigDark','#111318');
+const rigAccent=mat('rigAccent','#e82b9a');
 const skinMat=mat('skin','#9b6b54');
-const hoodieMat=mat('hoodie','#20242b');
-const hoodieAccent=mat('hoodieAccent','#267f8c');
-const shoeMat=mat('shoe','#e5e0d4');
+const hoodieMat=mat('hoodie','#f0ece3');
+const hoodieAccent=mat('hoodieAccent','#111318');
+const shoeMat=mat('shoe','#f3f0e8');
 const soleMat=mat('sole','#16181c');
 
 function limbBox(name,w,h,d,parent,x,y,z,material=rigMat){
@@ -749,8 +803,8 @@ function joint(name,parent,x,y,z){
 
 // pelvis + torso
 const pelvis=limbBox('pelvis',.72,.34,.42,rigRoot,0,.08,0,rigDark);
-const torso=limbBox('torso',.86,.92,.46,rigRoot,0,.72,0,hoodieMat);
-const chest=limbBox('chest',.98,.28,.5,rigRoot,0,1.12,0,hoodieAccent);
+const torso=limbBox('torso',1.00,1.00,.48,rigRoot,0,.74,0,hoodieMat);
+const chest=limbBox('chest',1.08,.22,.50,rigRoot,0,1.13,0,hoodieMat);
 
 // neck + head
 const neck=limbBox('neck',.24,.18,.24,rigRoot,0,1.36,0,skinMat);
@@ -761,26 +815,16 @@ head.material=skinMat;
 head.checkCollisions=false;
 
 // backpack
-const pack=limbBox('pack',.68,.72,.3,rigRoot,0,.82,-.34,rigAccent);
+const pack=limbBox('pack',.72,.78,.34,rigRoot,0,.83,-.36,rigDark);
 
 // clothing silhouette: hood, cap, straps and shoe soles
-const hood=BABYLON.MeshBuilder.CreateTorus('hood',{diameter:.72,thickness:.13,tessellation:18},scene);
+const hood=BABYLON.MeshBuilder.CreateTorus('hood',{diameter:.72,thickness:.09,tessellation:18},scene);
 hood.parent=rigRoot;hood.position.set(0,1.40,-.03);hood.rotation.x=Math.PI/2;hood.material=hoodieMat;hood.checkCollisions=false;
 const cap=BABYLON.MeshBuilder.CreateSphere('cap',{diameter:.64,segments:10,slice:.45},scene);
-cap.parent=rigRoot;cap.position.set(0,1.86,0);cap.scaling.y=.38;cap.material=hoodieAccent;cap.checkCollisions=false;
-const brim=limbBox('capBrim',.42,.055,.24,rigRoot,0,1.82,.34,hoodieAccent);
+cap.parent=rigRoot;cap.position.set(0,1.86,0);cap.scaling.y=.38;cap.material=rigDark;cap.checkCollisions=false;
+const brim=limbBox('capBrim',.44,.055,.28,rigRoot,0,1.82,.36,rigDark);
 const strapL=limbBox('strapL',.08,.72,.05,rigRoot,-.25,.88,.25,rigAccent);
 const strapR=limbBox('strapR',.08,.72,.05,rigRoot,.25,.88,.25,rigAccent);
-
-// Hoodie hem, hands and knee pads give the procedural rig a stronger game-character silhouette.
-const hoodieHem=limbBox('hoodieHem',.90,.18,.48,rigRoot,0,.32,0,hoodieMat);
-const lHand=BABYLON.MeshBuilder.CreateSphere('lHand',{diameter:.23,segments:8},scene);
-lHand.parent=lElbow;lHand.position.set(0,-.61,0);lHand.material=skinMat;lHand.checkCollisions=false;
-const rHand=BABYLON.MeshBuilder.CreateSphere('rHand',{diameter:.23,segments:8},scene);
-rHand.parent=rElbow;rHand.position.set(0,-.61,0);rHand.material=skinMat;rHand.checkCollisions=false;
-const lKneePad=limbBox('lKneePad',.27,.18,.08,lKnee,0,-.05,.14,hoodieAccent);
-const rKneePad=limbBox('rKneePad',.27,.18,.08,rKnee,0,-.05,.14,hoodieAccent);
-
 
 
 // simple face markers so we can always tell which way the character is looking
@@ -804,6 +848,8 @@ const lHip=joint('lHip',rigRoot,-.19,.04,0);
 const rHip=joint('rHip',rigRoot,.19,.04,0);
 const lThigh=limbBox('lThigh',.24,.68,.25,lHip,0,-.34,0,rigDark);
 const rThigh=limbBox('rThigh',.24,.68,.25,rHip,0,-.34,0,rigDark);
+const lCargo=limbBox('lCargoPocket',.12,.24,.30,lHip,-.16,-.26,.03,rigDark);
+const rCargo=limbBox('rCargoPocket',.12,.24,.30,rHip,.16,-.26,.03,rigDark);
 const lKnee=joint('lKnee',lHip,0,-.68,0);
 const rKnee=joint('rKnee',rHip,0,-.68,0);
 const lShin=limbBox('lShin',.23,.66,.23,lKnee,0,-.33,0,rigDark);
@@ -814,6 +860,43 @@ const lFoot=limbBox('lFoot',.29,.16,.46,lAnkle,0,-.05,.15,shoeMat);
 const rFoot=limbBox('rFoot',.29,.16,.46,rAnkle,0,-.05,.15,shoeMat);
 const lSole=limbBox('lSole',.30,.045,.48,lAnkle,0,-.14,.15,soleMat);
 const rSole=limbBox('rSole',.30,.045,.48,rAnkle,0,-.14,.15,soleMat);
+
+// Prototype character details: oversized white tee, orange chest mark, headphones, pink backpack mark and spray can.
+const hoodieHem=limbBox('teeHem',1.04,.18,.50,rigRoot,0,.30,0,hoodieMat);
+const lHand=BABYLON.MeshBuilder.CreateSphere('lHand',{diameter:.23,segments:8},scene);
+lHand.parent=lElbow;lHand.position.set(0,-.61,0);lHand.material=skinMat;lHand.checkCollisions=false;
+const rHand=BABYLON.MeshBuilder.CreateSphere('rHand',{diameter:.23,segments:8},scene);
+rHand.parent=rElbow;rHand.position.set(0,-.61,0);rHand.material=skinMat;rHand.checkCollisions=false;
+
+const orangeMark=emissiveMat('orangeMark','#ff6b1f',.18);
+const chestMark=limbBox('chestMark',.28,.30,.035,rigRoot,0,.82,.255,orangeMark);
+
+const phoneMat=mat('headphones','#111318');
+const phoneGlow=emissiveMat('headphoneGlow','#15c9f4',.35);
+for(const sx of [-1,1]){
+  const ear=BABYLON.MeshBuilder.CreateTorus('earphone'+sx,{diameter:.31,thickness:.08,tessellation:16},scene);
+  ear.parent=rigRoot;ear.position.set(sx*.34,1.70,0);ear.rotation.y=Math.PI/2;ear.material=phoneMat;ear.checkCollisions=false;
+  const ring=BABYLON.MeshBuilder.CreateTorus('earGlow'+sx,{diameter:.23,thickness:.035,tessellation:16},scene);
+  ring.parent=rigRoot;ring.position.set(sx*.345,1.70,0);ring.rotation.y=Math.PI/2;ring.material=phoneGlow;ring.checkCollisions=false;
+}
+const headband=BABYLON.MeshBuilder.CreateTorus('headband',{diameter:.73,thickness:.045,tessellation:18,arc:.52},scene);
+headband.parent=rigRoot;headband.position.set(0,1.76,0);headband.rotation.z=Math.PI;headband.material=phoneMat;headband.checkCollisions=false;
+
+// Yellow crown emblem on cap and pink crown-style backpack mark.
+function iconPlane(name,text,color,w,h,x,y,z,parent){
+  const tex=new BABYLON.DynamicTexture(name+'Tex',{width:256,height:128},scene,false);
+  const c=tex.getContext();c.clearRect(0,0,256,128);
+  c.font='900 78px Arial Black';c.textAlign='center';c.textBaseline='middle';c.fillStyle=color;c.fillText(text,128,64);
+  tex.update();
+  const mm=new BABYLON.StandardMaterial(name+'Mat',scene);mm.diffuseTexture=tex;mm.opacityTexture=tex;mm.emissiveColor=BABYLON.Color3.FromHexString(color).scale(.25);mm.backFaceCulling=false;
+  const p=BABYLON.MeshBuilder.CreatePlane(name,{width:w,height:h},scene);p.parent=parent;p.position.set(x,y,z);p.material=mm;p.checkCollisions=false;return p;
+}
+iconPlane('capCrown','♛','#f5c21b',.28,.16,0,1.86,.35,rigRoot);
+iconPlane('packCrown','♛','#e82b9a',.34,.22,0,.88,-.535,rigRoot);
+
+const sprayCan=BABYLON.MeshBuilder.CreateCylinder('sprayCan',{diameter:.14,height:.42,tessellation:12},scene);
+sprayCan.parent=rElbow;sprayCan.position.set(.03,-.63,.05);sprayCan.rotation.z=.15;sprayCan.material=sprayCyan;sprayCan.checkCollisions=false;
+
 
 let animClock=0;
 let lastPlayerPos=player.position.clone();
