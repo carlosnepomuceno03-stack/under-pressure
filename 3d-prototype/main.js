@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='FULL CONCEPT MAP V43';
+const BUILD='UI MENU AUDIO V44';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -2005,7 +2005,7 @@ scene.onBeforeRenderObservable.add(()=>{
   lastPlayerPos.copyFrom(player.position);
 
   if(player.position.y<-5){
-    player.position.set(-16,1.2,27);
+    player.position.set(-5,5.55,28);
     moveVelocity.set(0,0,0);
     parkourState='normal';
     activeObstacle=null;
