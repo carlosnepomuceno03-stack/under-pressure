@@ -1,6 +1,6 @@
 (()=>{
   const PATH='./3d-prototype/assets/characters/player/';
-  const FILES=['player_meshy_rigged_v1.glb','player_meshy.glb'];
+  const FILES=['player_final_quaternius.glb','player_meshy_rigged_v1.glb','player_meshy.glb'];
   const SRC_MIN_Y=-0.9509469866752625;
   const SRC_HEIGHT=1.8981509804725647;
   const TARGET_HEIGHT=2.18;
@@ -63,7 +63,7 @@
 
     const meshes=result.meshes||[];
     const groups=result.animationGroups||[];
-    const rigged=loadedFile.includes('rigged')&&groups.length>0;
+    const rigged=groups.length>0&&loadedFile!=='player_meshy.glb';
 
     if(rigged){
       // IMPORTANT: keep imported skin/skeleton hierarchy intact.
@@ -94,11 +94,25 @@
         return x===n.toLowerCase()||x.includes(n.toLowerCase());
       });
       const clips={
-        idle:by('Idle'),
-        run:by('Run'),
-        crouch:by('Crouch'),
-        jump:by('Jump'),
-        roll:by('RollForward')
+        idle:by('Idle_Loop')||by('Idle'),
+        walk:by('Walk_Loop'),
+        jog:by('Jog_Fwd_Loop')||by('Run'),
+        sprint:by('Sprint_Loop')||by('Jog_Fwd_Loop')||by('Run'),
+        crouchIdle:by('Crouch_Idle_Loop')||by('Crouch'),
+        crouchWalk:by('Crouch_Fwd_Loop')||by('Crouch'),
+        jumpStart:by('Jump_Start')||by('NinjaJump_Start')||by('Jump'),
+        jumpLoop:by('Jump_Loop')||by('NinjaJump_Idle_Loop')||by('Jump'),
+        jumpLand:by('Jump_Land')||by('NinjaJump_Land'),
+        roll:by('Roll')||by('RollForward'),
+        punchJab:by('Punch_Jab'),
+        punchCross:by('Punch_Cross'),
+        meleeHook:by('Melee_Hook'),
+        hit:by('Hit_Chest')||by('Hit_Knockback'),
+        interact:by('Interact'),
+        climb:by('ClimbUp_1m'),
+        slideStart:by('Slide_Start'),
+        slideLoop:by('Slide_Loop'),
+        slideExit:by('Slide_Exit')
       };
 
       let current=null;
@@ -126,6 +140,19 @@
         return true;
       };
 
+      const originalAttack=G.playAttack?.bind(G);
+      let comboStep=0;
+      G.playAttack=(type='light')=>{
+        originalAttack?.(type);
+        lockedUntil=performance.now()+(type==='heavy'?760:470);
+        if(type==='heavy'){
+          play(clips.meleeHook||clips.punchCross||clips.punchJab,false,.98);
+        }else{
+          comboStep=(comboStep+1)%2;
+          play(comboStep?clips.punchJab:clips.punchCross,false,1.05);
+        }
+      };
+
       scene.onBeforeRenderObservable.add(()=>{
         if(performance.now()<lockedUntil)return;
 
@@ -134,11 +161,15 @@
         prevY=player.position.y;
 
         if(Math.abs(dy)>.018){
-          play(clips.jump,false,1);
+          play(dy>0?(clips.jumpStart||clips.jumpLoop):(clips.jumpLoop||clips.jumpLand),false,1);
         }else if(st.crouching){
-          play(clips.crouch,true,st.speed>.2?1.08:.85);
-        }else if(st.speed>.35){
-          play(clips.run,true,st.running?1.12:.78);
+          play(st.speed>.22?(clips.crouchWalk||clips.crouchIdle):clips.crouchIdle,true,st.speed>.22?1.0:.9);
+        }else if(st.speed>5.6){
+          play(clips.sprint||clips.jog,true,1.02);
+        }else if(st.speed>2.0){
+          play(clips.jog||clips.walk,true,.92);
+        }else if(st.speed>.30){
+          play(clips.walk||clips.jog,true,.88);
         }else{
           play(clips.idle,true,1);
         }
