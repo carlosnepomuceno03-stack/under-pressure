@@ -4,16 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Under Pressure 3D Prototype</title>
-  <link rel="stylesheet" href="./3d-prototype/style.css?v=29" />
+  <link rel="stylesheet" href="./3d-prototype/style.css?v=30" />
 </head>
 <body>
   <div id="hud">
     <div class="brand">UNDER PRESSURE 3D</div>
-    <div class="hint">WASD = andar • Shift = correr • Espaço = pular/escalar • E = ataque/takedown • R = pesado • Q = esquiva</div>
+    <div class="hint">WASD = andar • Shift = correr • Ctrl/C = agachar • Espaço = pular/escalar • E = ataque/takedown • R = pesado • Q = esquiva</div>
   <div id="objective"><span>OBJETIVO</span> <b id="objectiveText">Alcance o mural pelos telhados, rua ou campão</b></div>
   <div id="statusRow">
     <div id="alertWrap" data-state="SAFE"><span id="alertText">OCULTO</span><i><b id="alertBar"></b></i></div>
-    <div id="collectibles">SPRAYS 0/4</div>
+    <div id="collectibles">ITENS 0/4</div><div id="stealthState">EM PÉ</div>
   </div>
   <div id="buildTag">...</div>
   <div id="mouseHint">CLIQUE NO JOGO PARA CAPTURAR O MOUSE</div>
@@ -29,23 +29,38 @@
 
   <div id="graffitiMode">
     <div class="paintPanel">
-      <div class="paintTop"><strong>GRAFFITI</strong><span>Pinte o mural</span></div>
-      <canvas id="graffitiCanvas"></canvas>
+      <div class="paintTop"><strong>PIECE MODE</strong><span id="repText">REP 0</span></div>
+      <div class="paintStats">
+        <label>COBERTURA <i><b id="coverageBar"></b></i><span id="coverageText">0%</span></label>
+        <label>PRESSÃO <i><b id="pressureBar"></b></i><span id="pressureText">100%</span></label>
+        <label>TINTA <i><b id="inkBar"></b></i><span id="inkText">100%</span></label>
+      </div>
+      <div class="paintStage">
+        <canvas id="graffitiCanvas"></canvas>
+        <canvas id="guideCanvas"></canvas>
+      </div>
       <div class="paintTools">
         <button data-paint="#35d7df" class="paint cyan active" aria-label="ciano"></button>
         <button data-paint="#ff4c8b" class="paint pink" aria-label="rosa"></button>
         <button data-paint="#ffd34e" class="paint yellow" aria-label="amarelo"></button>
         <button data-paint="#111217" class="paint black" aria-label="preto"></button>
         <button data-paint="#f5f2ea" class="paint white" aria-label="branco"></button>
+        <button data-paint="#9b65ff" class="paint uv locked" aria-label="uv" disabled></button>
+        <span class="toolSep"></span>
+        <button data-cap="normal" class="cap active">NORMAL</button>
+        <button data-cap="skinny" class="cap locked" disabled>SKINNY</button>
+        <button data-cap="fat" class="cap locked" disabled>FAT</button>
+        <button id="shakeCan">CHACOALHAR</button>
         <button id="cancelGraffiti">SAIR</button>
-        <button id="finishGraffiti">FINALIZAR</button>
+        <button id="finishGraffiti" disabled>FINALIZAR</button>
       </div>
+      <div class="paintHint">Siga o outline • movimentos rápidos = traço fino • parado demais = drip • chacoalhe a lata para recuperar pressão</div>
     </div>
   </div>
 
   <canvas id="renderCanvas"></canvas>
   <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="./3d-prototype/main.js?v=29"></script>
-  <script src="./3d-prototype/game-systems.js?v=29"></script>
+  <script src="./3d-prototype/main.js?v=30"></script>
+  <script src="./3d-prototype/game-systems.js?v=30"></script>
 </body>
 </html>
