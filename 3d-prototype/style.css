@@ -500,3 +500,85 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090b10;fon
     box-shadow:3px 4px 0 rgba(0,0,0,.26);
   }
 }
+
+/* V44 — approved graffiti HUD/menu language */
+.menuScreen,.pauseScreen,.modalPanel{
+  position:fixed;inset:0;z-index:80;display:none;color:#fff;
+  font-family:Impact,Haettenschweiler,'Arial Narrow Bold',sans-serif;
+}
+.menuScreen.show,.pauseScreen.show,.modalPanel.show{display:block}
+.menuShade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(4,5,10,.97) 0%,rgba(7,8,14,.78) 37%,rgba(7,8,14,.18) 72%,rgba(7,8,14,.05) 100%)}
+.mainMenuPanel{position:absolute;left:5vw;top:7vh;width:min(390px,38vw);display:flex;flex-direction:column;gap:9px}
+.menuLogo{margin-bottom:24px;line-height:.78;filter:drop-shadow(7px 8px 0 rgba(0,0,0,.38));transform:rotate(-2deg)}
+.menuLogo span,.menuLogo b,.menuLogo em{display:block;font-style:italic}
+.menuLogo span{font-size:58px;color:#fff;text-shadow:5px 5px 0 #111}
+.menuLogo b{font-size:74px;color:#29c9ef;text-shadow:5px 5px 0 #111}
+.menuLogo em{font-size:54px;color:#ef366d;margin-left:230px;margin-top:-12px}
+.mainMenuPanel button,.pausePanel button{
+  all:unset;box-sizing:border-box;cursor:pointer;color:#fff;font-size:24px;font-style:italic;
+  padding:9px 18px;background:rgba(5,6,10,.76);clip-path:polygon(2% 0,100% 6%,96% 100%,0 93%);
+  text-shadow:2px 2px 0 #111;transition:.12s transform,.12s background;
+}
+.mainMenuPanel button:hover,.pausePanel button:hover{transform:translateX(8px) rotate(-1deg);background:#1b202a}
+.mainMenuPanel .menuPrimary,.pausePanel .menuPrimary{background:#e92d68}
+.menuTag{margin-top:16px;color:#cfd4df;font-family:Arial,sans-serif;font-weight:800;font-size:12px;letter-spacing:.1em}
+
+.pauseScreen{background:rgba(2,3,8,.64);backdrop-filter:blur(5px)}
+.pausePanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-1deg);width:min(430px,86vw);padding:25px;background:#090b10;box-shadow:14px 14px 0 rgba(0,0,0,.38);display:flex;flex-direction:column;gap:10px}
+.pauseTitle{font-size:54px;font-style:italic;text-shadow:4px 4px 0 #e92d68;margin-bottom:8px}
+
+.modalPanel{background:rgba(2,3,8,.72);backdrop-filter:blur(5px)}
+.modalCard{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-.5deg);width:min(560px,88vw);padding:28px;background:#090b10;border:3px solid #2cc9f2;box-shadow:12px 12px 0 rgba(0,0,0,.4);font-family:Arial,sans-serif}
+.modalCard h2{margin:0 0 18px;font:italic 38px Impact,Arial Black,sans-serif;color:#fff;text-shadow:3px 3px 0 #e92d68}
+.modalClose{position:absolute;right:10px;top:8px;width:38px;height:38px;border:2px solid #ff3b9f;background:#111;color:#fff;font-size:25px;cursor:pointer}
+.modalCard label{display:grid;grid-template-columns:160px 1fr;gap:12px;align-items:center;margin:16px 0;font-weight:900}
+.modalCard input[type=range]{accent-color:#2cc9f2;width:100%}
+.missionCard{padding:15px;margin:9px 0;background:#151821;border-left:5px solid #2cc9f2;display:flex;flex-direction:column;gap:5px}
+.missionCard.locked{opacity:.45;border-color:#555}
+
+#hud{top:18px;left:18px;max-width:440px;padding:0;background:transparent;box-shadow:none;clip-path:none;transform:none}
+#hud:before{display:none}
+#objective{position:relative;background:#090b10;padding:12px 15px 13px 17px;clip-path:polygon(0 3%,97% 0,100% 91%,2% 100%);box-shadow:7px 7px 0 rgba(0,0,0,.3);border:0;margin:0}
+.objectiveLabel{display:inline-block;background:#e92d68;padding:4px 10px;margin:-18px 0 8px -9px;font:italic 22px Impact,Arial Black,sans-serif;transform:rotate(-2deg)}
+.objectiveMission{color:#2cc9f2;font:italic 11px Impact,Arial Black,sans-serif;margin-bottom:5px}
+#objectiveText{display:block;color:#fff;font:17px 'Arial Narrow',Arial,sans-serif}
+#statusRow{margin:7px 0 0 6px}
+#buildTag,#mouseHint{display:none}
+
+#topStats{position:fixed;z-index:22;top:18px;right:18px;display:flex;align-items:center;gap:7px;color:#fff;font-family:Impact,Arial Black,sans-serif}
+.statBadge{padding:9px 12px;background:#090b10;clip-path:polygon(3% 0,100% 5%,96% 100%,0 93%);box-shadow:4px 4px 0 rgba(0,0,0,.25);font-size:11px}
+.statBadge b{font-size:16px;color:#2cc9f2;margin-left:5px}
+.statBadge.crew b{color:#ff3b9f}.statBadge.rep b{color:#ffd13d}
+#pauseButton{width:42px;height:42px;background:#090b10;color:#fff;border:2px solid rgba(255,255,255,.15);font:20px Impact;cursor:pointer}
+
+#playerVitals{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:22;width:min(430px,44vw);padding:10px 14px;background:rgba(5,6,10,.82);clip-path:polygon(2% 0,100% 4%,97% 100%,0 94%);color:#fff}
+.vitalRow{display:grid;grid-template-columns:78px 1fr;gap:9px;align-items:center;margin:4px 0;font:italic 13px Impact,Arial Black,sans-serif}
+.vitalRow i{height:12px;background:#252a34;display:block}
+.vitalRow b{height:100%;display:block;transition:width .15s}
+.vitalRow.life b{background:#ff286f;width:100%}
+.vitalRow.vigor b{background:#1ed7e6;width:100%}
+
+#combatHud{right:18px;bottom:115px;width:190px;background:rgba(6,7,11,.88)}
+#combatHud .enemy{display:grid}
+
+#missionComplete{background:rgba(2,3,8,.76);backdrop-filter:blur(6px)}
+#missionComplete .missionCompleteCard{position:relative;width:min(520px,88vw);padding:34px 30px 28px;background:#090b10;border:3px solid #2cc9f2;box-shadow:14px 14px 0 rgba(0,0,0,.4);clip-path:none;text-align:left}
+.missionCompleteCard strong{font:italic 50px/0.88 Impact,Arial Black,sans-serif;color:#ff3b9f;text-shadow:4px 4px 0 #111}
+.missionCompleteCard strong em{color:#2cc9f2;font-style:italic}
+.missionCompleteCard span{display:block;margin:18px 0 8px;color:#ffd13d;font:20px Impact,Arial Black,sans-serif}
+.missionCompleteCard p{color:#e6e7eb;font:15px Arial,sans-serif}
+.missionX{position:absolute;right:12px;top:10px;width:38px;height:38px;background:#171922;color:#fff;border:2px solid #ff3b9f;font-size:25px;cursor:pointer}
+.missionCompleteActions{display:flex;gap:10px;margin-top:20px}
+.missionCompleteActions button{flex:1;padding:12px;border:0;color:#111;font:italic 16px Impact,Arial Black,sans-serif;cursor:pointer}
+#missionReplay{background:#2cc9f2}#missionContinue{background:#ff3b9f;color:#fff}
+
+@media (pointer:coarse),(max-width:900px){
+  #topStats{top:max(6px,env(safe-area-inset-top));right:max(6px,env(safe-area-inset-right));gap:3px}
+  .statBadge{padding:6px 7px;font-size:8px}.statBadge b{font-size:11px}
+  #pauseButton{width:32px;height:32px;font-size:14px}
+  #playerVitals{bottom:max(8px,env(safe-area-inset-bottom));width:36vw;min-width:230px;padding:6px 9px}
+  .vitalRow{grid-template-columns:55px 1fr;font-size:9px}.vitalRow i{height:8px}
+  .mainMenuPanel{left:5vw;top:6vh;width:48vw}
+  .menuLogo span{font-size:34px}.menuLogo b{font-size:44px}.menuLogo em{font-size:32px;margin-left:135px}
+  .mainMenuPanel button{font-size:16px;padding:7px 12px}
+}
