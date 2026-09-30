@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='MOVEMENT V22';
+const BUILD='CLIMB ALIGN V23';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -342,7 +342,8 @@ function rightFlat(){
   return new BABYLON.Vector3(Math.cos(camYaw),0,Math.sin(camYaw)).normalize();
 }
 function playerForward(){
-  return new BABYLON.Vector3(Math.sin(player.rotation.y),0,Math.cos(player.rotation.y)).normalize();
+  const visualYaw=player.rotation.y+Math.PI;
+  return new BABYLON.Vector3(Math.sin(visualYaw),0,Math.cos(visualYaw)).normalize();
 }
 function rayDown(distance=1.35){
   const ray=new BABYLON.Ray(
@@ -415,7 +416,7 @@ function beginClimb(data){
   moveVelocity.set(0,0,0);
 
   // Face the wall exactly so the visual rig and climbing direction agree.
-  player.rotation.y=Math.atan2(data.dir.x,data.dir.z);
+  player.rotation.y=Math.atan2(data.dir.x,data.dir.z)-Math.PI;
 
   // Pin the collider just outside the wall instead of allowing it to drift through.
   if(data.contact){
@@ -593,7 +594,7 @@ scene.onBeforeRenderObservable.add(()=>{
       1-Math.exp(-accel*dt)
     );
 
-    const yaw=Math.atan2(wish.x,wish.z);
+    const yaw=Math.atan2(wish.x,wish.z)-Math.PI;
     let dyaw=((yaw-player.rotation.y+Math.PI)%(Math.PI*2)+Math.PI)%(Math.PI*2)-Math.PI;
     player.rotation.y+=dyaw*(1-Math.exp(-12*dt));
   }else{
