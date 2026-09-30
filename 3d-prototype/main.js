@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='ART PASS V38';
+const BUILD='ENVIRONMENT ART V39';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -25,6 +25,34 @@ const sun=new BABYLON.DirectionalLight('sun',new BABYLON.Vector3(-.45,-1,.35),sc
 sun.position=new BABYLON.Vector3(25,35,-20);
 sun.intensity=.72;
 sun.diffuse=new BABYLON.Color3(1,.58,.34);
+
+// Stylized sunset sky dome — cheap, browser/mobile friendly.
+const skyTex=new BABYLON.DynamicTexture('skyTex',{width:1024,height:512},scene,false);
+const skyCtx=skyTex.getContext();
+const skyGrad=skyCtx.createLinearGradient(0,0,0,512);
+skyGrad.addColorStop(0,'#10162e');
+skyGrad.addColorStop(.38,'#273457');
+skyGrad.addColorStop(.68,'#8a5260');
+skyGrad.addColorStop(.86,'#d77a55');
+skyGrad.addColorStop(1,'#f0a15f');
+skyCtx.fillStyle=skyGrad;skyCtx.fillRect(0,0,1024,512);
+for(let i=0;i<90;i++){
+  skyCtx.globalAlpha=.16+(i%5)*.03;
+  skyCtx.fillStyle=i%3===0?'#ffd1a0':'#687399';
+  const x=(i*127)%1024,y=60+(i*47)%300;
+  skyCtx.fillRect(x,y,18+(i%7)*16,1+(i%3));
+}
+skyCtx.globalAlpha=1;skyTex.update();
+
+const skyMat=new BABYLON.StandardMaterial('skyMat',scene);
+skyMat.diffuseTexture=skyTex;
+skyMat.emissiveTexture=skyTex;
+skyMat.disableLighting=true;
+skyMat.backFaceCulling=false;
+skyMat.specularColor=BABYLON.Color3.Black();
+
+const sky=BABYLON.MeshBuilder.CreateSphere('sky',{diameter:170,segments:18,sideOrientation:BABYLON.Mesh.BACKSIDE},scene);
+sky.material=skyMat;sky.isPickable=false;sky.checkCollisions=false;
 
 const mat=(name,hex)=>{
   const m=new BABYLON.StandardMaterial(name,scene);
@@ -129,6 +157,54 @@ function addShopSign(name,text,x,y,z,w=3.4,rotY=Math.PI/2,bg='#16232d',fg='#f6cf
   matSign.backFaceCulling=false;
   return decalPlane(name,w,1.05,x,y,z,matSign,rotY);
 }
+
+function addPitchedRoof(name,x,topY,z,w,d,material=roofMat,pitch=.30){
+  const panelD=d*.56;
+  const left=box(name+'L',w,.16,panelD,x,topY+.72,z-d*.23,material,false);
+  const right=box(name+'R',w,.16,panelD,x,topY+.72,z+d*.23,material,false);
+  left.rotation.x=pitch; right.rotation.x=-pitch;
+  left.checkCollisions=false;right.checkCollisions=false;
+  const ridge=box(name+'Ridge',w+.08,.12,.16,x,topY+1.36,z,metalMat,false);
+  ridge.checkCollisions=false;
+  return [left,right,ridge];
+}
+
+function addBalcony(name,x,y,z,length=3.6,depth=1.2){
+  const slab=box(name+'Slab',depth,.16,length,x,y,z,concrete,false);slab.checkCollisions=false;
+  const railTop=box(name+'RailTop',.07,.08,length*.98,x+depth*.46,y+.92,z,metalMat,false);railTop.checkCollisions=false;
+  for(let i=-3;i<=3;i++){
+    const rz=z+i*(length*.9/6);
+    const rail=box(name+'Rail'+i,.06,.86,.06,x+depth*.46,y+.48,rz,metalMat,false);
+    rail.checkCollisions=false;
+  }
+  const postA=box(name+'PostA',.12,2.0,.12,x-depth*.34,y-1.0,z-length*.38,concrete,false);
+  const postB=box(name+'PostB',.12,2.0,.12,x-depth*.34,y-1.0,z+length*.38,concrete,false);
+  postA.checkCollisions=false;postB.checkCollisions=false;
+}
+
+function addMetalFence(name,x,z,length=4,height=1.7){
+  const y=.32+height/2;
+  const top=box(name+'Top',.07,.07,length,x,y+height/2,z,metalMat,false);top.checkCollisions=false;
+  const bottom=box(name+'Bottom',.07,.07,length,x,y-height/2,z,metalMat,false);bottom.checkCollisions=false;
+  for(let i=0;i<9;i++){
+    const zz=z-length/2+i*(length/8);
+    const bar=box(name+'Bar'+i,.055,height,.055,x,y,zz,metalMat,false);bar.checkCollisions=false;
+  }
+}
+
+function addEave(name,x,y,z,length=5,depth=.8,material=roofMat){
+  const e=box(name,length,.14,depth,x,y,z,material,false);
+  e.rotation.z=.03;e.checkCollisions=false;return e;
+}
+
+function addMeterBox(name,x,y,z,rotY=0){
+  const mb=box(name,.42,.62,.16,x,y,z,metalMat,false);
+  mb.rotation.y=rotY;mb.checkCollisions=false;
+  const glass=emissiveMat(name+'Glass','#8ab4b4',.08);
+  const face=decalPlane(name+'Face',.24,.26,x+(Math.abs(rotY)>1?(rotY>0?-.09:.09):0),y+.06,z+(Math.abs(rotY)<1?.09:0),glass,rotY);
+  return [mb,face];
+}
+
 
 
 
@@ -564,6 +640,69 @@ for(const z of [-26,-18,6,18,27]){
   c.checkCollisions=false;
 }
 
+// ENVIRONMENT ART V39 — visual shells over stable gameplay collisions.
+// Pitched roofs on the residential row.
+for(let i=0;i<6;i++){
+  const z=-28+i*11;
+  const h=5+(i%2)*2.2;
+  addPitchedRoof('roofPitchL'+i,-31,h+.10,z,10.8,8.8,i%2?roofMat:metalMat,.28+(i%2)*.04);
+}
+
+// Rooftop route keeps collision flat, but gains visible roof geometry around the traversable tops.
+addPitchedRoof('roofPitchShop',8,4.78,18,9.2,8.3,roofMat,.23);
+addPitchedRoof('roofPitchHouse2',18,6.78,8,10.2,9.3,roofMat,.20);
+addPitchedRoof('roofPitchHouse3',30,8.48,-3,11.2,9.3,roofMat,.18);
+
+// Residential balconies / awnings / metal fences.
+addBalcony('balconyL1',-25.45,3.95,-17,3.4,1.0);
+addBalcony('balconyL2',-25.45,4.05,5,3.0,1.0);
+addBalcony('balconyL3',-25.45,3.85,27,3.6,1.0);
+addMetalFence('fenceA',-24.65,-30,4.5,1.55);
+addMetalFence('fenceB',-24.65,15,3.8,1.45);
+addMetalFence('fenceC',-5.05,26,4.1,1.5);
+
+addEave('eaveMercado',3.62,3.45,18,1.0,4.2,metalMat);
+addEave('eaveOficina',-25.55,3.20,23,1.0,3.4,metalMat);
+addEave('eaveBar',-25.55,3.06,-10,1.0,2.8,roofMat);
+
+// Utility details close to eye level.
+addMeterBox('meterA',-25.55,1.35,-12,-Math.PI/2);
+addMeterBox('meterB',-25.55,1.42,7,-Math.PI/2);
+addMeterBox('meterC',3.30,1.35,15,Math.PI/2);
+
+// Concrete wall caps and columns.
+for(const [x,z,len] of [[-5.0,-23,5],[-5.0,10,4.2],[-24.7,32,5.5]]){
+  const wall=box('yardWall'+z,.42,1.55,len,x,.78,z,wallLight,false);wall.checkCollisions=false;
+  for(const dz of [-len/2,len/2]){
+    const col=box('yardCol'+z+dz,.58,1.9,.58,x,.95,z+dz,concrete,false);col.checkCollisions=false;
+    const cap=box('yardCap'+z+dz,.70,.12,.70,x,1.95,z+dz,concrete,false);cap.checkCollisions=false;
+  }
+}
+
+// Street clutter: sacks, buckets, pallets and rooftop vents.
+const bagMat=mat('bagMat','#25272b');
+for(const [x,z,s] of [[-23.2,-2,.6],[-23.0,-1.3,.48],[1.5,-7,.55],[14,-16,.5]]){
+  const bag=BABYLON.MeshBuilder.CreateSphere('trashBag'+x+z,{diameter:s,segments:8},scene);
+  bag.position.set(x,s*.38,z);bag.scaling.y=.8;bag.material=bagMat;bag.checkCollisions=false;
+}
+for(const [x,z] of [[-23.2,22],[2.4,-17],[20,-16]]){
+  const bucket=BABYLON.MeshBuilder.CreateCylinder('bucket'+x+z,{diameter:.42,height:.52,tessellation:12},scene);
+  bucket.position.set(x,.26,z);bucket.material=metalMat;bucket.checkCollisions=false;
+}
+for(const [x,y,z] of [[8,5.25,16],[18,7.35,6],[30,9.0,-5]]){
+  const vent=box('roofVent'+x,.65,.75,.65,x,y,z,metalMat,false);vent.checkCollisions=false;
+  const cap=box('roofVentCap'+x,.82,.12,.82,x,y+.43,z,metalMat,false);cap.checkCollisions=false;
+}
+
+// Large cerrado tree near the lot to break the skyline.
+addTree('treeHero',29,-18,1.45);
+
+// Small warm window clusters on the residential row.
+for(const [z,y] of [[-28,2.0],[-17,2.7],[-6,2.1],[5,2.7],[16,2.0],[27,2.7]]){
+  addWindow('warmWin'+z,-25.88,y,z-1.5,1.05,.75,warmGlow);
+  addWindow('darkWin'+z,-25.88,y,z+1.1,.82,.68,bluePaint);
+}
+
 // TDG roster retained as world/lore data.
 // Visual tags are intentionally disabled until they can be attached to real wall surfaces.
 const crewNames=['NEPO','TRANE','NOROK','ICON','GOM','MM','OFF','PRIKS','ANJO','SINUK','ASKA','TALYN','PATEK','ERRARO','RODEF','BOLA'];
@@ -632,6 +771,16 @@ cap.parent=rigRoot;cap.position.set(0,1.86,0);cap.scaling.y=.38;cap.material=hoo
 const brim=limbBox('capBrim',.42,.055,.24,rigRoot,0,1.82,.34,hoodieAccent);
 const strapL=limbBox('strapL',.08,.72,.05,rigRoot,-.25,.88,.25,rigAccent);
 const strapR=limbBox('strapR',.08,.72,.05,rigRoot,.25,.88,.25,rigAccent);
+
+// Hoodie hem, hands and knee pads give the procedural rig a stronger game-character silhouette.
+const hoodieHem=limbBox('hoodieHem',.90,.18,.48,rigRoot,0,.32,0,hoodieMat);
+const lHand=BABYLON.MeshBuilder.CreateSphere('lHand',{diameter:.23,segments:8},scene);
+lHand.parent=lElbow;lHand.position.set(0,-.61,0);lHand.material=skinMat;lHand.checkCollisions=false;
+const rHand=BABYLON.MeshBuilder.CreateSphere('rHand',{diameter:.23,segments:8},scene);
+rHand.parent=rElbow;rHand.position.set(0,-.61,0);rHand.material=skinMat;rHand.checkCollisions=false;
+const lKneePad=limbBox('lKneePad',.27,.18,.08,lKnee,0,-.05,.14,hoodieAccent);
+const rKneePad=limbBox('rKneePad',.27,.18,.08,rKnee,0,-.05,.14,hoodieAccent);
+
 
 
 // simple face markers so we can always tell which way the character is looking
@@ -1509,6 +1658,23 @@ window.UP3D={
     rigRoot.rotation.x=0;
   }
 };
+
+// Lightweight dynamic shadows: character only on mobile, character + nearby props on desktop.
+const shadowMapSize=matchMedia('(pointer:coarse)').matches?512:1024;
+const shadowGen=new BABYLON.ShadowGenerator(shadowMapSize,sun);
+shadowGen.useBlurExponentialShadowMap=true;
+shadowGen.blurKernel=12;
+shadowGen.bias=.0025;
+for(const mesh of scene.meshes){
+  if(mesh===player||mesh.parent===rigRoot||mesh.parent===lShoulder||mesh.parent===rShoulder||
+     mesh.parent===lElbow||mesh.parent===rElbow||mesh.parent===lHip||mesh.parent===rHip||
+     mesh.parent===lKnee||mesh.parent===rKnee||mesh.parent===lAnkle||mesh.parent===rAnkle){
+    if(mesh!==player)shadowGen.addShadowCaster(mesh);
+  }
+  if(['ground','road','sidewalkL','sidewalkR'].includes(mesh.name)||mesh.name.startsWith('roof')){
+    mesh.receiveShadows=true;
+  }
+}
 
 scene.collisionsEnabled=true;
 engine.runRenderLoop(()=>scene.render());
