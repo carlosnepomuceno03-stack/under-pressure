@@ -96,33 +96,17 @@ camera.lowerRadiusLimit=5.5;camera.upperRadiusLimit=10;
 camera.lowerBetaLimit=.7;camera.upperBetaLimit=1.35;
 camera.lockedTarget=player;
 
-// PC camera: pointer-lock mouse look.
-// Browsers require one user gesture to capture the cursor. After that, NO holding/click-drag is needed.
-let targetAlpha=camera.alpha;
-let targetBeta=camera.beta;
-const LOOK_X=.0028;
-const LOOK_Y=.0022;
-
-function setCameraHint(locked){
-  const el=document.getElementById('cameraHint');
-  if(el)el.classList.toggle('hidden',locked);
-}
-
-canvas.addEventListener('pointerdown',e=>{
-  if(e.pointerType==='mouse'&&document.pointerLockElement!==canvas){
-    canvas.requestPointerLock?.();
-  }
-});
-document.addEventListener('pointerlockchange',()=>{
-  const locked=document.pointerLockElement===canvas;
-  targetAlpha=camera.alpha;
-  targetBeta=camera.beta;
-  setCameraHint(locked);
-});
-document.addEventListener('mousemove',e=>{
-  if(document.pointerLockElement!==canvas)return;
-  targetAlpha-=e.movementX*LOOK_X;
-  targetBeta=BABYLON.Scalar.Clamp(targetBeta+e.movementY*LOOK_Y,.72,1.30);
+// PC camera without click/drag.
+// The cursor position controls camera turn speed, like an edge-look system.
+// Move near screen center to stop rotating; move farther to rotate faster.
+let mouseNX=0,mouseNY=0;
+let mouseInside=false;
+canvas.addEventListener('mouseenter',()=>mouseInside=true);
+canvas.addEventListener('mouseleave',()=>{mouseInside=false;mouseNX=0;mouseNY=0;});
+canvas.addEventListener('mousemove',e=>{
+  const r=canvas.getBoundingClientRect();
+  mouseNX=((e.clientX-r.left)/Math.max(1,r.width))*2-1;
+  mouseNY=((e.clientY-r.top)/Math.max(1,r.height))*2-1;
 });
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
@@ -191,9 +175,14 @@ scene.onBeforeRenderObservable.add(()=>{
   const dt=Math.min(.033,engine.getDeltaTime()/1000);
   parkourCooldown=Math.max(0,parkourCooldown-dt);
 
-  // Smooth, stable third-person camera.
-  camera.alpha=BABYLON.Scalar.Lerp(camera.alpha,targetAlpha,1-Math.pow(.0008,dt));
-  camera.beta=BABYLON.Scalar.Lerp(camera.beta,targetBeta,1-Math.pow(.0008,dt));
+  // Smooth camera without pointer lock or click.
+  if(mouseInside){
+    const dead=.12;
+    const sx=Math.abs(mouseNX)<dead?0:(Math.sign(mouseNX)*(Math.abs(mouseNX)-dead)/(1-dead));
+    const sy=Math.abs(mouseNY)<dead?0:(Math.sign(mouseNY)*(Math.abs(mouseNY)-dead)/(1-dead));
+    camera.alpha-=sx*1.9*dt;
+    camera.beta=BABYLON.Scalar.Clamp(camera.beta+sy*1.25*dt,.72,1.30);
+  }
 
   const f=forwardFlat(),r=rightFlat();
   let move=BABYLON.Vector3.Zero();
