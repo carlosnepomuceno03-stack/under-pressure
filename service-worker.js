@@ -1,4 +1,4 @@
-const CACHE='under-pressure-v15-network-first';
+const CACHE='under-pressure-v18-network-first';
 const ASSETS=[
   './','./index.html','./style.css?v=15','./game.js?v=15','./manifest.webmanifest',
   './icon-192.png','./icon-512.png','./apple-touch-icon.png','./favicon.png'
@@ -23,6 +23,15 @@ self.addEventListener('activate',event=>{
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET') return;
   const url=new URL(event.request.url);
+
+  // 3D prototype must always bypass stale PWA cache while we iterate quickly.
+  if(url.origin===self.location.origin && (
+      url.pathname.endsWith('/3d.html') ||
+      url.pathname.includes('/3d-prototype/')
+  )){
+    event.respondWith(fetch(event.request,{cache:'no-store'}));
+    return;
+  }
 
   // Always prefer fresh app code/pages when online.
   if(url.origin===self.location.origin && (
