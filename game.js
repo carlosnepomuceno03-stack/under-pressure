@@ -68,6 +68,8 @@ function btn(s,x,y,w,h,label,fill=YELLOW,col='#111',size=20){
   return {bg,tx,on:(e,f)=>bg.on(e,f)};
 }
 function hexNum(h){return Phaser.Display.Color.HexStringToColor(h).color}
+function charKey(frame){return IS_TOUCH?'base_'+frame:'game_'+frame}
+function painterKey(kind){return IS_TOUCH?(kind==='spray'?'painter_spray_src':'painter_idle_src'):(kind==='spray'?'painter_spray_live':'painter_idle_live')}
 function addOrientationHint(scene){
   if(!IS_TOUCH)return;
   const update=()=>{
@@ -220,7 +222,7 @@ class Boot extends Phaser.Scene{
     });
   }
   create(){
-    this.buildLiveTextures();
+    if(!IS_TOUCH)this.buildLiveTextures();
     this.scene.start('Menu');
   }
   recolorImage(srcKey,outKey,kind='game'){
@@ -306,7 +308,7 @@ class Custom extends Phaser.Scene{
 
     panel(this,640,365,210,300,.9);
     txt(this,640,235,'NO JOGO',15,'#ffd447',true).setOrigin(.5);
-    this.preview=this.add.sprite(640,490,'game_idle_front').setOrigin(.5,.92).setScale(.72);
+    this.preview=this.add.sprite(640,490,charKey('idle_front')).setOrigin(.5,.92).setScale(.72);
     this.previewMask=this.add.image(640,348,'mask_full').setScale(.0195).setVisible(P.mask).setDepth(20);
 
     txt(this,825,185,'NOME / TAG',17,'#ffd447',true);
@@ -400,8 +402,8 @@ class Custom extends Phaser.Scene{
     this.input.keyboard.on('keydown-ESC',()=>this.scene.start('Menu'));
   }
   refreshPreview(){
-    this.scene.get('Boot').buildLiveTextures();
-    this.preview?.setTexture('game_idle_front');
+    if(!IS_TOUCH)this.scene.get('Boot').buildLiveTextures();
+    this.preview?.setTexture(charKey('idle_front'));
     if(this.previewMask){
       this.previewMask.setVisible(P.mask);
       this.previewMask.setTint(P.rareMaskEquipped?0xc56cff:0xffffff);
@@ -475,7 +477,7 @@ class MapScene extends Phaser.Scene{
     }
 
     this.shadow=this.add.ellipse(790,742,58,17,0x000000,.4).setDepth(100);
-    this.player=this.add.sprite(790,735,'game_idle_front').setOrigin(.5,.92).setScale(.47).setDepth(101);
+    this.player=this.add.sprite(790,735,charKey('idle_front')).setOrigin(.5,.92).setScale(.47).setDepth(101);
     this.maskOverlay=this.add.sprite(790,735,'maskframe_idle_front').setOrigin(.5,.92).setScale(.47).setDepth(103).setVisible(P.mask);
     this.world.add([this.shadow,this.player,this.maskOverlay]);
 
@@ -578,7 +580,7 @@ class MapScene extends Phaser.Scene{
     const makeGuard=(x,y,axis,range,speed,dir=1,tint=0x6f88bb)=>{
       const body=this.add.container(x,y);
       const shadow=this.add.ellipse(0,16,46,14,0x000000,.45);
-      const officer=this.add.sprite(0,18,'game_idle_front').setOrigin(.5,.92).setScale(.31).setTint(tint);
+      const officer=this.add.sprite(0,18,charKey('idle_front')).setOrigin(.5,.92).setScale(.31).setTint(tint);
       const vest=this.add.rectangle(0,-8,30,25,0x071329,.60).setStrokeStyle(2,0x8aa7dc,.65);
       const badge=this.add.circle(9,-14,3.2,0xffd447,1);
       const belt=this.add.rectangle(0,3,31,5,0x05080e,.85);
@@ -627,11 +629,11 @@ class MapScene extends Phaser.Scene{
       if(g.axis==='x'){
         g.body.x+=g.dir*g.speed*dt;
         if(Math.abs(g.body.x-g.startX)>g.range)g.dir*=-1;
-        if(g.body.officer)g.body.officer.setTexture(g.dir>0?'game_idle_right':'game_idle_left');
+        if(g.body.officer)g.body.officer.setTexture(charKey(g.dir>0?'idle_right':'idle_left'));
       }else{
         g.body.y+=g.dir*g.speed*dt;
         if(Math.abs(g.body.y-g.startY)>g.range)g.dir*=-1;
-        if(g.body.officer)g.body.officer.setTexture(g.dir>0?'game_idle_front':'game_idle_back');
+        if(g.body.officer)g.body.officer.setTexture(charKey(g.dir>0?'idle_front':'idle_back'));
       }
       const gx=g.body.x,gy=g.body.y;
       const ang=Math.atan2(this.player.y-gy,this.player.x-gx);
@@ -895,7 +897,7 @@ class MapScene extends Phaser.Scene{
       let nx=Phaser.Math.Clamp(this.player.x+dx*sp,55,this.worldW-55),ny=this.player.y;if(!this.blocked(nx,ny))this.player.x=nx;
       nx=this.player.x;ny=Phaser.Math.Clamp(this.player.y+dy*sp,110,this.worldH-35);if(!this.blocked(nx,ny))this.player.y=ny;
       const dir=Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'front':'back');this.last=dir;this.frame=(this.frame+delta*.008)%4;
-      const fi=Math.floor(this.frame)+1;this.currentFrame='walk_'+dir+'_'+fi;this.player.setTexture('game_'+this.currentFrame);
+      const fi=Math.floor(this.frame)+1;this.currentFrame='walk_'+dir+'_'+fi;this.player.setTexture(charKey(this.currentFrame));
       this.cameras.main.zoom=Phaser.Math.Linear(this.cameras.main.zoom,1.18,.085);
       if(time-this.lastStep>300){this.lastStep=time;AUDIO.stepFx()}
     }else{
@@ -952,7 +954,7 @@ class Paint extends Phaser.Scene{
     this.buildStageMasks();
 
     // character: one art asset, two meaningful poses
-    this.painter=this.add.image(410,715,'painter_idle_live').setOrigin(.5,1).setScale(2.18).setDepth(20);
+    this.painter=this.add.image(410,715,painterKey('idle')).setOrigin(.5,1).setScale(2.18).setDepth(20);
     this.painterMask=this.add.image(444,325,'mask_right').setScale(.028).setDepth(24).setVisible(P.mask).setTint(P.rareMaskEquipped?0xc56cff:0xffffff);
     this.paintActive=false;
     this.recoilTween=null;
@@ -1198,14 +1200,14 @@ class Paint extends Phaser.Scene{
 
   startPaintAnim(){
     if(this.paintActive||this.shaking)return;this.paintActive=true;
-    this.painter.setTexture('painter_spray_live').setScale(1.58).setPosition(455,660).setAngle(0);
+    this.painter.setTexture(painterKey('spray')).setScale(1.58).setPosition(455,660).setAngle(0);
     if(P.mask)this.painterMask.setTexture('mask_right').setScale(.026).setPosition(387,497).setTint(P.rareMaskEquipped?0xc56cff:0xffffff).setVisible(true);
     this.recoilTween=this.tweens.add({targets:this.painter,x:'+=5',angle:{from:-.45,to:.75},duration:135,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
   }
   stopPaintAnim(){
     this.paintActive=false;if(this.recoilTween){this.recoilTween.stop();this.recoilTween=null}
     this.tweens.killTweensOf(this.painter);
-    this.painter.setTexture('painter_idle_live').setScale(2.18).setPosition(410,715).setAngle(0);
+    this.painter.setTexture(painterKey('idle')).setScale(2.18).setPosition(410,715).setAngle(0);
     if(P.mask)this.painterMask.setTexture('mask_right').setScale(.028).setPosition(444,325).setTint(P.rareMaskEquipped?0xc56cff:0xffffff).setVisible(true);
     else this.painterMask.setVisible(false);
     this.sprayFx.clear();
