@@ -8,3 +8,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090b10;fon
 #mouseHint{margin-top:6px;font-size:10px;font-weight:800;letter-spacing:.05em;color:#ffd447}
 .mouse-locked #mouseHint{display:none}
 .mouse-locked{cursor:none}
+
+#objective{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12);font-size:11px;color:#f4f0e8}
+#objective span{font-weight:900;color:#41e7ff;margin-right:6px;letter-spacing:.08em}
+#buildTag{margin-top:5px;font-size:10px;color:#8f98a8;letter-spacing:.08em}
