@@ -222,3 +222,43 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090b10;fon
   body.touch-game:has(#graffitiMode.show) #hud{display:none}
   body.touch-game:has(#graffitiMode.show) #combatHud{display:none}
 }
+
+/* V40 — prototype-match HUD language */
+#hud{
+  background:rgba(7,9,14,.88);
+  border:2px solid rgba(255,255,255,.08);
+  border-left:4px solid #f5c21b;
+  border-radius:4px;
+  box-shadow:8px 8px 0 rgba(0,0,0,.28);
+}
+.brand{
+  font-family:Impact,Haettenschweiler,'Arial Narrow Bold',sans-serif;
+  font-style:italic;
+  font-size:18px;
+  color:#fff;
+  text-shadow:3px 3px 0 #111,5px 5px 0 #e82b9a;
+}
+#objective span,#alertWrap[data-state="SAFE"],#stealthState{color:#f5c21b}
+#objective{border-top:2px solid rgba(245,194,27,.32)}
+#combatHud{
+  border-radius:4px;
+  background:rgba(8,10,16,.92);
+  border:2px solid rgba(255,255,255,.08);
+  box-shadow:6px 6px 0 rgba(0,0,0,.30);
+}
+#comboText{color:#f5c21b}
+#interactPrompt{
+  border-radius:3px;
+  border:2px solid #f5c21b;
+  background:#0b0d12;
+  box-shadow:5px 5px 0 rgba(0,0,0,.38);
+}
+.paintPanel{
+  border-radius:3px;
+  border:2px solid rgba(255,255,255,.10);
+  background:#090b10;
+}
+.paintTop strong,.galleryTitle{font-family:Impact,Arial Black,sans-serif;font-style:italic;color:#fff}
+.artCard.active{border-color:#f5c21b;background:#1d1a12}
+.paintTools button{border-radius:3px}
+#finishGraffiti{background:#f5c21b!important}
