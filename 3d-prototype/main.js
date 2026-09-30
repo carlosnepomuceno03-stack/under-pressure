@@ -92,28 +92,24 @@ const pack=box('pack',.7,.85,.32,0,0,0,accent);pack.parent=player;pack.position.
 
 // camera
 const camera=new BABYLON.ArcRotateCamera('cam',Math.PI/2,1.12,8,new BABYLON.Vector3(0,1.3,0),scene);
-camera.attachControl(canvas,true);
 camera.lowerRadiusLimit=5.5;camera.upperRadiusLimit=10;
 camera.lowerBetaLimit=.7;camera.upperBetaLimit=1.35;
-camera.wheelDeltaPercentage=.01;
-camera.panningSensibility=0;
 camera.lockedTarget=player;
 
-// Camera follows mouse movement directly while the pointer is over the game.
-// No click-and-drag required.
+// PC camera: true mouse-look without clicking or dragging.
+// We do not attach Babylon's default pointer controls because those require drag.
 let mouseLook=true;
 canvas.addEventListener('mouseenter',()=>mouseLook=true);
 canvas.addEventListener('mouseleave',()=>mouseLook=false);
-document.addEventListener('mousemove',e=>{
-  if(!mouseLook||document.pointerLockElement===canvas)return;
-  const rect=canvas.getBoundingClientRect();
-  const nx=(e.clientX-rect.left)/Math.max(1,rect.width);
-  const ny=(e.clientY-rect.top)/Math.max(1,rect.height);
-  const targetAlpha=Math.PI/2+(nx-.5)*Math.PI*1.35;
-  const targetBeta=.82+ny*.42;
-  camera.alpha=BABYLON.Scalar.Lerp(camera.alpha,targetAlpha,.09);
-  camera.beta=BABYLON.Scalar.Lerp(camera.beta,BABYLON.Scalar.Clamp(targetBeta,.72,1.28),.09);
+canvas.addEventListener('mousemove',e=>{
+  if(!mouseLook)return;
+  camera.alpha-=e.movementX*.0042;
+  camera.beta=BABYLON.Scalar.Clamp(camera.beta+e.movementY*.0032,.72,1.30);
 });
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  camera.radius=BABYLON.Scalar.Clamp(camera.radius+Math.sign(e.deltaY)*.55,5.5,10);
+},{passive:false});
 
 // input
 const keys={};
