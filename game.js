@@ -37,6 +37,14 @@ let P=Object.assign({
   bucketUnlocked:false,
   specialSprayUnlocked:false,
   legendarySprays:[],
+  skinnyCapUnlocked:false,
+  fatCapUnlocked:false,
+  glovesUnlocked:false,
+  rareMaskUnlocked:false,
+  rareMaskEquipped:false,
+  neonUnlocked:false,
+  campaignComplete:false,
+  replayCount:0,
   phase1Art:null,
   phase2Art:null,
   phase3Art:null,
@@ -323,13 +331,22 @@ class Custom extends Phaser.Scene{
     });
 
     txt(this,825,595,'MÁSCARA',17,'#ffd447',true);
-    const none=btn(this,915,665,155,58,'SEM MÁSCARA',!P.mask?YELLOW:MID,!P.mask?'#111':'#fff',13);
-    const monkey=btn(this,1110,665,175,58,'MACACO TDG',P.mask?YELLOW:MID,P.mask?'#111':'#fff',13);
-    none.on('pointerdown',()=>{P.mask=false;SAVE.set(P);this.refreshPreview();this.scene.restart({next:this.next})});
-    monkey.on('pointerdown',()=>{P.mask=true;SAVE.set(P);this.refreshPreview();this.scene.restart({next:this.next})});
+    const none=btn(this,885,665,145,58,'SEM MÁSCARA',!P.mask?YELLOW:MID,!P.mask?'#111':'#fff',12);
+    const monkey=btn(this,1050,665,165,58,'MACACO TDG',P.mask&&!P.rareMaskEquipped?YELLOW:MID,P.mask&&!P.rareMaskEquipped?'#111':'#fff',12);
+    none.on('pointerdown',()=>{P.mask=false;P.rareMaskEquipped=false;SAVE.set(P);this.refreshPreview();this.scene.restart({next:this.next})});
+    monkey.on('pointerdown',()=>{P.mask=true;P.rareMaskEquipped=false;SAVE.set(P);this.refreshPreview();this.scene.restart({next:this.next})});
 
-    this.add.image(1270,655,'monkey').setScale(.055);
-    txt(this,1325,640,'MÁSCARA DA CREW',13,'#aeb7c8',true);
+    if(P.rareMaskUnlocked){
+      const rare=btn(this,1245,665,195,58,'MACACO RARO',P.rareMaskEquipped?YELLOW:0x4b2a6f,P.rareMaskEquipped?'#111':'#fff',12);
+      rare.on('pointerdown',()=>{P.mask=true;P.rareMaskEquipped=true;SAVE.set(P);this.refreshPreview();this.scene.restart({next:this.next})});
+      txt(this,1245,705,'RECOMPENSA DA CAMPANHA',10,'#d6a8ff',true).setOrigin(.5);
+    }else{
+      txt(this,1245,665,'???',20,'#6f7480',true).setOrigin(.5);
+      txt(this,1245,700,'TERMINE AS 3 FASES',10,'#7f8796',true).setOrigin(.5);
+    }
+
+    this.add.image(1455,655,'monkey').setScale(.05).setTint(P.rareMaskEquipped?0xd28cff:0xffffff);
+    txt(this,1510,640,P.rareMaskEquipped?'MÁSCARA RARA':'MÁSCARA DA CREW',12,P.rareMaskEquipped?'#d6a8ff':'#aeb7c8',true);
 
     txt(this,825,745,'COR INICIAL DO SPRAY',17,'#ffd447',true);
     ['#ff2d78','#19d7e7','#ffd447','#a7ff4a','#8c63ff'].forEach((c,i)=>{
@@ -339,10 +356,27 @@ class Custom extends Phaser.Scene{
 
     const back=btn(this,1000,875,180,54,'VOLTAR',MID,'#fff',18);back.on('pointerdown',()=>this.scene.start('Menu'));
     const go=btn(this,1320,875,320,54,this.next==='Map'?'SALVAR E JOGAR':'SALVAR',YELLOW,'#111',19);
-    go.on('pointerdown',()=>{SAVE.set(P);this.scene.get('Boot').buildLiveTextures();this.scene.start(this.next)});
+    go.on('pointerdown',()=>{
+      // Finishing the campaign unlocks the rare mask. Replaying with it equipped
+      // unlocks the neon palette and starts a fresh run while keeping inventory.
+      if(this.next==='Map'&&P.phase3Complete&&P.rareMaskUnlocked&&P.rareMaskEquipped){
+        P.neonUnlocked=true;P.replayCount=(P.replayCount||0)+1;
+        P.phase1Complete=false;P.phase2Complete=false;P.phase3Complete=false;
+        P.missionComplete=false;P.phase=1;
+        P.phase1Art=null;P.phase2Art=null;P.phase3Art=null;
+      }
+      SAVE.set(P);this.scene.get('Boot').buildLiveTextures();this.scene.start(this.next)
+    });
     this.input.keyboard.on('keydown-ESC',()=>this.scene.start('Menu'));
   }
-  refreshPreview(){this.scene.get('Boot').buildLiveTextures();this.preview?.setTexture('game_idle_front');this.previewMask?.setVisible(P.mask)}
+  refreshPreview(){
+    this.scene.get('Boot').buildLiveTextures();
+    this.preview?.setTexture('game_idle_front');
+    if(this.previewMask){
+      this.previewMask.setVisible(P.mask);
+      this.previewMask.setTint(P.rareMaskEquipped?0xc56cff:0xffffff);
+    }
+  }
 }
 
 // ---------- MAP ----------
@@ -396,6 +430,13 @@ class MapScene extends Phaser.Scene{
     this.phase2=P.phase1Complete&&!P.phase2Complete;
     this.phase3=P.phase2Complete&&!P.phase3Complete;
     this.activePhase=this.phase3?3:(this.phase2?2:1);
+    const phaseStarts={
+      1:{x:790,y:735},
+      2:{x:GW+120,y:735},
+      3:{x:GW+260,y:GH+760}
+    };
+    const st=phaseStarts[this.activePhase];
+    this.player.setPosition(st.x,st.y);this.shadow.setPosition(st.x,st.y+3);this.maskOverlay.setPosition(st.x,st.y);
     this.point=this.phase3?new Phaser.Math.Vector2(GW+1180,GH+610):(this.phase2?new Phaser.Math.Vector2(GW+505,585):new Phaser.Math.Vector2(1230,618));
     this.halo=this.add.ellipse(this.point.x,this.point.y,138,46,0xffd447,.14).setStrokeStyle(5,0xffd447,.95).setDepth(50);
     this.world.add(this.halo);
@@ -432,7 +473,7 @@ class MapScene extends Phaser.Scene{
     main.setBounds(0,0,this.worldW,this.worldH);main.startFollow(this.player,true,.075,.075);main.setZoom(1.12);
     this.uiCam=this.cameras.add(0,0,GW,GH);this.uiCam.ignore(this.world);main.ignore(this.ui);
 
-    if(this.phase2)this.createStealthGuards();
+    this.createStealthGuards();
     this.createCollectibles();
     this.createMiniMap();
 
@@ -447,32 +488,46 @@ class MapScene extends Phaser.Scene{
     this.guardLayer=this.add.container(0,0).setDepth(120);
     this.world.add(this.guardLayer);
 
-    const makeGuard=(x,y,axis,range,speed,dir=1)=>{
+    const makeGuard=(x,y,axis,range,speed,dir=1,tint=0x6f88bb)=>{
       const body=this.add.container(x,y);
       const shadow=this.add.ellipse(0,16,46,14,0x000000,.45);
-      const officer=this.add.sprite(0,18,'game_idle_front').setOrigin(.5,.92).setScale(.27).setTint(0x6f88bb);
-      const vest=this.add.rectangle(0,-8,28,24,0x0a1327,.56).setStrokeStyle(2,0x88a6df,.5);
-      const badge=this.add.circle(8,-14,3,0xffd447,1);
-      const capBrim=this.add.rectangle(0,-49,28,5,0x0b1020,1);
-      const capTop=this.add.rectangle(0,-55,20,9,0x101a33,1);
-      body.add([shadow,officer,vest,badge,capBrim,capTop]);
-      body.officer=officer;
+      const officer=this.add.sprite(0,18,'game_idle_front').setOrigin(.5,.92).setScale(.31).setTint(tint);
+      const vest=this.add.rectangle(0,-8,30,25,0x071329,.60).setStrokeStyle(2,0x8aa7dc,.65);
+      const badge=this.add.circle(9,-14,3.2,0xffd447,1);
+      const belt=this.add.rectangle(0,3,31,5,0x05080e,.85);
+      const capBrim=this.add.rectangle(0,-50,29,5,0x08111f,1);
+      const capTop=this.add.rectangle(0,-56,21,10,0x0e1a32,1);
+      body.add([shadow,officer,vest,badge,belt,capBrim,capTop]);body.officer=officer;
       const cone=this.add.graphics();
       this.guardLayer.add([cone,body]);
       return {body,cone,startX:x,startY:y,axis,range,speed,dir,phase:Math.random()*Math.PI*2};
     };
 
-    this.guards=[
-      makeGuard(GW+740,390,'x',245,64,1),
-      makeGuard(GW+430,690,'y',205,56,-1)
-    ];
+    if(this.activePhase===1){
+      this.guards=[
+        makeGuard(1080,540,'x',175,44,1,0x7088b9)
+      ];
+    }else if(this.activePhase===2){
+      this.guards=[
+        makeGuard(GW+740,390,'x',245,68,1,0x6a85b8),
+        makeGuard(GW+430,690,'y',205,62,-1,0x6f8fbe)
+      ];
+    }else{
+      this.guards=[
+        makeGuard(GW+480,GH+460,'x',245,82,1,0x637fb2),
+        makeGuard(GW+910,GH+690,'y',220,78,-1,0x7691c4),
+        makeGuard(GW+1290,GH+500,'x',210,88,-1,0x5f78a8),
+        makeGuard(GW+760,GH+300,'y',170,84,1,0x7898c9)
+      ];
+    }
 
-    this.stealthHud=txt(this,GW/2,120,'NÃO ENTRE NA LUZ DOS POLICIAIS',18,'#ffd447',true).setOrigin(.5).setBackgroundColor('#090c12').setPadding(14,9);
+    const label=this.activePhase===1?'1 GUARDA • FIQUE FORA DA LUZ':this.activePhase===2?'2 GUARDAS • PATRULHA MAIS RÁPIDA':'4 GUARDAS • DISTRITO EM ALERTA';
+    this.stealthHud=txt(this,GW/2,120,label,18,'#ffd447',true).setOrigin(.5).setBackgroundColor('#090c12').setPadding(14,9);
     this.ui.add(this.stealthHud);
   }
 
   updateStealth(delta){
-    if(!this.phase2||!this.guards)return;
+    if(!this.guards?.length)return;
     const dt=delta/1000;
     let seen=false;
     for(const g of this.guards){
@@ -488,7 +543,7 @@ class MapScene extends Phaser.Scene{
       const gx=g.body.x,gy=g.body.y;
       const ang=Math.atan2(this.player.y-gy,this.player.x-gx);
       const facing=g.axis==='x'?(g.dir>0?0:Math.PI/2*2):(g.dir>0?Math.PI/2:-Math.PI/2);
-      const len=210,spread=.44;
+      const len=[165,215,255][this.activePhase-1],spread=[.36,.43,.48][this.activePhase-1];
       g.cone.clear();g.cone.fillStyle(0xfff1a8,.12);
       g.cone.beginPath();g.cone.moveTo(gx,gy-18);
       g.cone.lineTo(gx+Math.cos(facing-spread)*len,gy-18+Math.sin(facing-spread)*len);
@@ -502,15 +557,17 @@ class MapScene extends Phaser.Scene{
     }
 
     if(seen){
-      this.stealthCaught=Math.min(1,this.stealthCaught+dt*1.45);
+      this.stealthCaught=Math.min(1,this.stealthCaught+dt*[.92,1.35,1.72][this.activePhase-1]);
       this.stealthHud.setText(this.stealthCaught>.65?'CORRE! ELES ESTÃO TE VENDO!':'VOCÊ FOI VISTO!').setColor('#ff4f77');
     }else{
-      this.stealthCaught=Math.max(0,this.stealthCaught-dt*1.8);
-      this.stealthHud.setText('NÃO ENTRE NA LUZ DOS POLICIAIS').setColor('#ffd447');
+      this.stealthCaught=Math.max(0,this.stealthCaught-dt*[2.2,1.8,1.45][this.activePhase-1]);
+      const label=this.activePhase===1?'1 GUARDA • FIQUE FORA DA LUZ':this.activePhase===2?'2 GUARDAS • PATRULHA MAIS RÁPIDA':'4 GUARDAS • DISTRITO EM ALERTA';
+      this.stealthHud.setText(label).setColor('#ffd447');
     }
     if(this.stealthCaught>=1){
       this.stealthCaught=0;AUDIO.siren();
-      this.player.setPosition(GW+115,735);this.shadow.setPosition(GW+115,738);
+      const starts={1:{x:790,y:735},2:{x:GW+120,y:735},3:{x:GW+260,y:GH+760}};
+      const st=starts[this.activePhase];this.player.setPosition(st.x,st.y);this.shadow.setPosition(st.x,st.y+3);
       this.showObjective(true);
       const t=txt(this,GW/2,190,'OS POLICIAIS TE VIRAM — VOLTEI VOCÊ PRO INÍCIO',19,'#ff4f77',true).setOrigin(.5).setBackgroundColor('#090c12').setPadding(12,8);
       this.ui.add(t);this.time.delayedCall(1800,()=>t.destroy());
@@ -590,36 +647,36 @@ class MapScene extends Phaser.Scene{
 
   createCollectibles(){
     this.collectibles=[];
-    if(P.phase1Complete&&!P.bucketUnlocked){
-      const c=this.add.container(955,610).setDepth(95);
-      const glow=this.add.circle(0,0,34,0xffd447,.18).setStrokeStyle(4,0xffd447,.85);
-      const body=this.add.rectangle(0,3,30,38,0xffd447,1).setStrokeStyle(2,0xffffff,.75);
-      const top=this.add.rectangle(0,-19,19,8,0xffffff,.85);
-      const label=txt(this,0,48,'BALDE',12,'#ffd447',true).setOrigin(.5);
-      c.add([glow,body,top,label]);this.world.add(c);
-      this.tweens.add({targets:c,y:'-=8',duration:850,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
-      this.collectibles.push({type:'bucket',obj:c,x:955,y:610});
-    }
-    if(P.phase2Complete&&!P.specialSprayUnlocked){
-      const c=this.add.container(GW+850,730).setDepth(95);
-      const glow=this.add.circle(0,0,34,0x8c63ff,.18).setStrokeStyle(4,0x8c63ff,.9);
-      const can=this.add.rectangle(0,0,18,46,0x8c63ff,1).setStrokeStyle(2,0xffffff,.8);
-      const cap=this.add.rectangle(0,-26,9,7,0xffffff,1);
-      const label=txt(this,0,48,'SPRAY ESPECIAL',11,'#bca8ff',true).setOrigin(.5);
-      c.add([glow,can,cap,label]);this.world.add(c);
-      this.tweens.add({targets:c,y:'-=8',duration:850,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
-      this.collectibles.push({type:'spray',obj:c,x:GW+850,y:730});
-    }
-    if(P.phase3Complete&&!P.legendarySprays.includes('#39ff88')){
-      const c=this.add.container(GW+1390,GH+690).setDepth(95);
-      const glow=this.add.circle(0,0,38,0x39ff88,.18).setStrokeStyle(4,0x39ff88,.95);
-      const can=this.add.rectangle(0,0,19,50,0x39ff88,1).setStrokeStyle(2,0xffffff,.85);
-      const cap=this.add.rectangle(0,-28,10,7,0xffffff,1);
-      const label=txt(this,0,52,'LATA LENDÁRIA',11,'#39ff88',true).setOrigin(.5);
-      c.add([glow,can,cap,label]);this.world.add(c);
-      this.tweens.add({targets:c,y:'-=9',duration:780,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
-      this.collectibles.push({type:'legendary',obj:c,x:GW+1390,y:GH+690});
-    }
+    const addItem=(type,x,y,label,color,shape='can')=>{
+      const c=this.add.container(x,y).setDepth(95);
+      const glow=this.add.circle(0,0,37,color,.16).setStrokeStyle(4,color,.9);
+      let icon;
+      if(shape==='bucket'){
+        icon=this.add.rectangle(0,3,31,38,color,1).setStrokeStyle(2,0xffffff,.8);
+        c.add(this.add.rectangle(0,-19,20,8,0xffffff,.85));
+      }else if(shape==='cap'){
+        icon=this.add.ellipse(0,0,34,19,color,1).setStrokeStyle(2,0xffffff,.8);
+        c.add(this.add.rectangle(0,-12,12,10,0xffffff,.7));
+      }else if(shape==='glove'){
+        icon=this.add.rectangle(0,0,26,38,color,1).setStrokeStyle(2,0xffffff,.8).setAngle(-12);
+      }else{
+        icon=this.add.rectangle(0,0,19,50,color,1).setStrokeStyle(2,0xffffff,.85);
+        c.add(this.add.rectangle(0,-28,10,7,0xffffff,1));
+      }
+      const t=txt(this,0,52,label,10,Phaser.Display.Color.IntegerToColor(color).rgba,true).setOrigin(.5);
+      c.add([glow,icon,t]);this.world.add(c);
+      this.tweens.add({targets:c,y:'-=8',duration:760+Math.random()*220,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+      this.collectibles.push({type,obj:c,x,y});
+    };
+
+    if(P.phase1Complete&&!P.bucketUnlocked)addItem('bucket',955,610,'BALDE',0xffd447,'bucket');
+    if(P.phase1Complete&&!P.skinnyCapUnlocked)addItem('skinny',1170,760,'CAP FINO',0x19d7e7,'cap');
+
+    if(P.phase2Complete&&!P.fatCapUnlocked)addItem('fat',GW+760,730,'CAP FAT',0xff5b35,'cap');
+    if(P.phase2Complete&&!P.legendarySprays.includes('#8c63ff'))addItem('uv',GW+980,600,'UV LENDÁRIA',0x8c63ff,'can');
+
+    if(P.phase3Complete&&!P.glovesUnlocked)addItem('gloves',GW+1180,GH+760,'LUVAS PRO',0xe7e7e7,'glove');
+    if(P.phase3Complete&&!P.legendarySprays.includes('#39ff88'))addItem('acid',GW+1390,GH+690,'ACID LENDÁRIA',0x39ff88,'can');
   }
 
   checkCollectibles(){
@@ -629,14 +686,22 @@ class MapScene extends Phaser.Scene{
       if(Phaser.Math.Distance.Between(this.player.x,this.player.y,c.x,c.y)<70){
         if(c.type==='bucket'){
           P.bucketUnlocked=true;
-          this.showPickup('BALDE DE TINTA DESBLOQUEADO','Use o BALDE na próxima arte para preencher áreas rápido.');
-        }else if(c.type==='spray'){
-          P.specialSprayUnlocked=true;
+          this.showPickup('BALDE DE TINTA','Preenche rapidamente uma área conectada da missão.');
+        }else if(c.type==='skinny'){
+          P.skinnyCapUnlocked=true;
+          this.showPickup('CAP FINO','Traços rápidos ficam mais precisos e gastam menos tinta.');
+        }else if(c.type==='fat'){
+          P.fatCapUnlocked=true;
+          this.showPickup('CAP FAT','Traços lentos cobrem mais parede e engrossam mais.');
+        }else if(c.type==='uv'){
           if(!P.legendarySprays.includes('#8c63ff'))P.legendarySprays.push('#8c63ff');
-          this.showPickup('LATA LENDÁRIA: ULTRAVIOLETA','Cor exclusiva + mais cobertura por passada.');
-        }else{
+          this.showPickup('LATA LENDÁRIA: ULTRAVIOLETA','Cor exclusiva com brilho próprio.');
+        }else if(c.type==='gloves'){
+          P.glovesUnlocked=true;
+          this.showPickup('LUVAS PRO','Demora mais para criar escorridos acidentais.');
+        }else if(c.type==='acid'){
           if(!P.legendarySprays.includes('#39ff88'))P.legendarySprays.push('#39ff88');
-          this.showPickup('LATA LENDÁRIA: ACID','Nova tinta exclusiva adicionada ao seu inventário.');
+          this.showPickup('LATA LENDÁRIA: ACID','Verde exclusivo com efeito de brilho.');
         }
         c.obj.destroy();SAVE.set(P);
       }
@@ -679,6 +744,7 @@ class MapScene extends Phaser.Scene{
     if(!P.mask){this.maskOverlay.setVisible(false);return}
     this.maskOverlay.setVisible(true);
     this.maskOverlay.setTexture('maskframe_'+frameKey);
+    this.maskOverlay.setTint(P.rareMaskEquipped?0xc56cff:0xffffff);
     this.maskOverlay.setPosition(this.player.x,this.player.y).setScale(this.player.scaleX,this.player.scaleY).setDepth(this.player.y+3);
   }
   update(time,delta){
@@ -752,7 +818,7 @@ class Paint extends Phaser.Scene{
 
     // character: one art asset, two meaningful poses
     this.painter=this.add.image(410,715,'painter_idle_live').setOrigin(.5,1).setScale(2.18).setDepth(20);
-    this.painterMask=this.add.image(444,325,'mask_right').setScale(.028).setDepth(24).setVisible(P.mask);
+    this.painterMask=this.add.image(444,325,'mask_right').setScale(.028).setDepth(24).setVisible(P.mask).setTint(P.rareMaskEquipped?0xc56cff:0xffffff);
     this.paintActive=false;
     this.recoilTween=null;
 
@@ -760,7 +826,8 @@ class Paint extends Phaser.Scene{
     this.sprayFx=this.add.graphics().setDepth(22);
 
     // police spotlight cone: start far away so it does not instantly punish
-    this.lightX=1480;this.lightDir=-1;this.lightSpeed=92;
+    this.lightX=1480;this.lightDir=-1;
+    this.lightSpeed=[78,102,132][this.phase-1];
     this.cone=this.add.graphics().setDepth(18);
     this.policeWarn=txt(this,1115,157,'',19,'#ff547e',true).setOrigin(.5).setDepth(60).setAlpha(0);
     this.lastWhistle=0;
@@ -782,6 +849,15 @@ class Paint extends Phaser.Scene{
         q.on('pointerdown',()=>{this.color=c;this.swatch.setFillStyle(hexNum(c));AUDIO.select()});
       });
     }
+    this.neonColors=['#00f7ff','#ff00e6','#7cff00','#ff6b00'];
+    if(P.neonUnlocked){
+      txt(this,38,408,'NEON RARO',10,'#ffffff',true);
+      this.neonColors.forEach((c,i)=>{
+        const q=this.add.circle(78+i*49,418,15,hexNum(c),1).setStrokeStyle(3,0xffffff,.95).setInteractive({useHandCursor:true});
+        q.on('pointerdown',()=>{this.color=c;this.swatch.setFillStyle(hexNum(c));AUDIO.select()});
+      });
+    }
+    this.neonScreenFx=this.add.rectangle(GW/2,GH/2,GW-16,GH-16,0x000000,0).setStrokeStyle(7,0x00f7ff,0).setDepth(80);
 
     txt(this,38,445,'FERRAMENTA',18,'#ffd447',true);this.brush='spray';this.toolButtons=[];
     [['spray','SPRAY'],['marker','MARKER'],['drip','DRIP']].forEach((o,i)=>{
@@ -813,8 +889,9 @@ class Paint extends Phaser.Scene{
     this.add.rectangle(835,62,305,68,0x090c12,.9);txt(this,706,37,'POLÍCIA',15,'#fff',true);this.police=0;
     this.policeFill=this.add.rectangle(774,78,170,14,PINK).setOrigin(0,.5);
 
-    this.add.rectangle(1170,62,315,68,0x090c12,.9);txt(this,1045,37,'TEMPO',15,'#fff',true);this.timeLeft=75;
-    this.timeText=txt(this,1170,76,'75.0s',20,'#ffd447',true).setOrigin(.5);
+    this.add.rectangle(1170,62,315,68,0x090c12,.9);txt(this,1045,37,'TEMPO',15,'#fff',true);
+    this.timeLeft=[82,68,56][this.phase-1];
+    this.timeText=txt(this,1170,76,this.timeLeft.toFixed(1)+'s',20,'#ffd447',true).setOrigin(.5);
 
     this.add.rectangle(1500,62,310,68,0x090c12,.9);txt(this,1378,37,'MISSÃO',15,'#fff',true);
     this.stageText=txt(this,1500,76,'PREENCHIMENTO',16,'#fff',true).setOrigin(.5);
@@ -922,10 +999,17 @@ class Paint extends Phaser.Scene{
   paintAt(x,y){
     if(this.ink<=0||this.shaking)return;
     const g=this.pg,c=this.color;
-    const speedThin=Phaser.Math.Clamp(1.12-(this.pointerSpeed/900),.52,1.12);
-    const holdGrow=1+Math.min(.9,this.stillTime*.48);
+    const skinny=P.skinnyCapUnlocked?.88:1;
+    const fat=P.fatCapUnlocked?(1+Math.min(.28,this.stillTime*.18)):1;
+    const speedThin=Phaser.Math.Clamp(1.12-(this.pointerSpeed/900),P.skinnyCapUnlocked?.42:.52,1.12);
+    const holdGrow=1+Math.min(P.fatCapUnlocked?1.15:.9,this.stillTime*(P.fatCapUnlocked?.62:.48));
     const special=P.specialSprayUnlocked&&this.brush==='spray'?1.28:1;
-    const s=this.size*speedThin*holdGrow*special;
+    const s=this.size*speedThin*holdGrow*special*skinny*fat;
+    const neon=this.neonColors?.includes(c);
+    if(neon){
+      g.save();g.globalCompositeOperation='screen';g.shadowColor=c;g.shadowBlur=22;g.fillStyle=c;g.globalAlpha=.16;
+      g.beginPath();g.arc(x,y,s*1.65,0,Math.PI*2);g.fill();g.restore();
+    }
     if(this.brush==='marker'){g.fillStyle=c;g.globalAlpha=.92;g.beginPath();g.arc(x,y,s*.58,0,Math.PI*2);g.fill();g.globalAlpha=1}
     else{
       const n=IS_TOUCH?(this.brush==='drip'?8:Math.max(8,Math.floor(s*.7))):(this.brush==='drip'?20:Math.max(24,s*2));
@@ -980,14 +1064,14 @@ class Paint extends Phaser.Scene{
   startPaintAnim(){
     if(this.paintActive||this.shaking)return;this.paintActive=true;
     this.painter.setTexture('painter_spray_live').setScale(1.58).setPosition(455,660).setAngle(0);
-    if(P.mask)this.painterMask.setTexture('mask_right').setScale(.026).setPosition(387,497).setVisible(true);
+    if(P.mask)this.painterMask.setTexture('mask_right').setScale(.026).setPosition(387,497).setTint(P.rareMaskEquipped?0xc56cff:0xffffff).setVisible(true);
     this.recoilTween=this.tweens.add({targets:this.painter,x:'+=5',angle:{from:-.45,to:.75},duration:135,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
   }
   stopPaintAnim(){
     this.paintActive=false;if(this.recoilTween){this.recoilTween.stop();this.recoilTween=null}
     this.tweens.killTweensOf(this.painter);
     this.painter.setTexture('painter_idle_live').setScale(2.18).setPosition(410,715).setAngle(0);
-    if(P.mask)this.painterMask.setTexture('mask_right').setScale(.028).setPosition(444,325).setVisible(true);
+    if(P.mask)this.painterMask.setTexture('mask_right').setScale(.028).setPosition(444,325).setTint(P.rareMaskEquipped?0xc56cff:0xffffff).setVisible(true);
     else this.painterMask.setVisible(false);
     this.sprayFx.clear();
   }
@@ -1051,13 +1135,17 @@ class Paint extends Phaser.Scene{
       P.phase2Complete=true;P.phase=3;P.missionComplete=false;P.phase2Art=captured;
     }else{
       P.phase3Complete=true;P.phase=3;P.missionComplete=true;P.phase3Art=captured;
+      P.rareMaskUnlocked=true;P.campaignComplete=true;
     }
     P.lastScore=score;P.lastStars=stars;P.finalColors=(this.colorsUsed.length?this.colorsUsed:[P.spray,'#19d7e7','#ffd447']).slice(0,3);while(P.finalColors.length<3)P.finalColors.push(['#ff2d78','#19d7e7','#ffd447'][P.finalColors.length]);SAVE.set(P);
     this.add.rectangle(GW/2,GH/2,GW,GH,0x000000,.72).setDepth(1000);panel(this,GW/2,GH/2,760,500,.98,0xffd447).setDepth(1001);
     txt(this,GW/2,285,`FASE ${this.phase} CONCLUÍDA!`,48,'#ffd447',true).setOrigin(.5).setDepth(1002);txt(this,GW/2,350,'★'.repeat(stars)+'☆'.repeat(3-stars),50,'#ffd447',true).setOrigin(.5).setDepth(1002);txt(this,GW/2,410,`ESTILO: ${score} PONTOS`,27,'#fff',true).setOrigin(.5).setDepth(1002);
     [`Tempo: +${speed}`,`Paleta (${colors||1} cor${colors===1?'':'es'}): ${paletteBonus>=0?'+':''}${paletteBonus}`,`Outline/desenho: +${outlineBonus}`,`Risco polícia: +${policeBonus}`,`Escorridos: -${dripPenalty}`].forEach((t,i)=>txt(this,GW/2,465+i*28,t,17,i===4?'#ff7b9c':'#c8d0dc').setOrigin(.5).setDepth(1002));
-    const reward=this.phase===1?'NOVO COLETÁVEL: BALDE DE TINTA':(this.phase===2?'NOVO COLETÁVEL: LATA LENDÁRIA ULTRAVIOLETA':'NOVO COLETÁVEL: LATA LENDÁRIA ACID');
+    const reward=this.phase===1?'NOVOS ITENS NO MAPA: BALDE + CAP FINO':(this.phase===2?'NOVOS ITENS: CAP FAT + ULTRAVIOLETA':'RECOMPENSA: MÁSCARA MACACO RARA + ACID + LUVAS');
     txt(this,GW/2,620,reward,15,'#ffd447',true).setOrigin(.5).setDepth(1002);
+    if(this.phase===3){
+      txt(this,GW/2,646,'EQUIPE A MÁSCARA RARA E REJOGUE PARA LIBERAR AS CORES NEON',12,'#d6a8ff',true).setOrigin(.5).setDepth(1002);
+    }
     const b=btn(this,GW/2,680,300,62,'VOLTAR AO MAPA',YELLOW,'#111',20);b.bg.setDepth(1003);b.tx.setDepth(1004);b.on('pointerdown',()=>this.scene.start('Map'));
   }
 
@@ -1070,7 +1158,7 @@ class Paint extends Phaser.Scene{
     this.lightX+=this.lightDir*this.lightSpeed*dt;if(this.lightX<325){this.lightX=325;this.lightDir=1}if(this.lightX>1510){this.lightX=1510;this.lightDir=-1}
     this.drawPoliceCone();
     const caught=this.policeHitsPaintPoint();
-    if(caught)this.police=Math.min(100,this.police+34*dt);else this.police=Math.max(0,this.police-6*dt);
+    if(caught)this.police=Math.min(100,this.police+[27,35,44][this.phase-1]*dt);else this.police=Math.max(0,this.police-[7,6,5][this.phase-1]*dt);
 
     if(this.police>72){
       this.policeWarn.setText(this.police>88?'POLÍCIA MUITO PERTO!':'CUIDADO COM A LUZ!').setAlpha((Math.sin(now/130)+1)/2*.8+.2);
@@ -1082,7 +1170,10 @@ class Paint extends Phaser.Scene{
     if(this.police>=100){this.failMission('PEGARAM VOCÊ!');return}
 
     if(this.down&&!this.shaking&&this.ink>0){
-      this.ink=Math.max(0,this.ink-(this.brush==='marker'?7:this.brush==='drip'?17:(P.specialSprayUnlocked?10:14))*dt);
+      let drain=(this.brush==='marker'?7:this.brush==='drip'?17:(P.specialSprayUnlocked?10:14));
+      if(P.skinnyCapUnlocked&&this.pointerSpeed>420)drain*=.84;
+      if(P.fatCapUnlocked&&this.pointerSpeed<180)drain*=1.10;
+      this.ink=Math.max(0,this.ink-drain*dt);
 
       if(this.current&&this.stillAnchor){
         const dist=Math.hypot(this.current.x-this.stillAnchor.x,this.current.y-this.stillAnchor.y);
@@ -1090,7 +1181,8 @@ class Paint extends Phaser.Scene{
         else{this.stillAnchor={...this.current};this.stillTime=0}
       }
 
-      const delay=this.brush==='drip'?.22:this.brush==='marker'?1.05:.62;
+      const gloveBonus=P.glovesUnlocked?.28:0;
+      const delay=(this.brush==='drip'?.22:this.brush==='marker'?1.05:.62)+gloveBonus;
       const cadence=this.brush==='drip'?145:this.brush==='marker'?320:245;
       if(this.stillTime>delay&&now-this.lastDripAt>cadence){
         this.lastDripAt=now;this.spawnDrip();
@@ -1111,6 +1203,11 @@ class Paint extends Phaser.Scene{
 
     if(this.stageIndex===3){this.bonusTime=Math.max(0,this.bonusTime-dt);this.finishBtn.tx.setText(`FINALIZAR BÔNUS ${this.bonusTime.toFixed(0)}s`);if(this.bonusTime<=0)this.completeMission()}
 
+    const neonOn=this.neonColors?.includes(this.color)&&this.down;
+    if(this.neonScreenFx){
+      const col=hexNum(this.color||'#00f7ff');
+      this.neonScreenFx.setStrokeStyle(7,col,neonOn?(.20+.16*(Math.sin(now/110)+1)/2):0);
+    }
     const sp=this.stageProgress();this.stageBar.width=520*Math.min(1,sp/this.stages[this.stageIndex].threshold);this.stagePct.setText(Math.round(Math.min(1,sp/this.stages[this.stageIndex].threshold)*100)+'%');
     this.inkFill.width=185*this.ink/100;this.policeFill.width=170*this.police/100;
     if(!P.mask)this.painterMask.setVisible(false);
