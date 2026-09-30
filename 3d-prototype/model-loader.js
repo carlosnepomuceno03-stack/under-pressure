@@ -15,56 +15,84 @@
     loadPlayer();
   }
 
+  function makeReadableMaterial(scene, mesh){
+    if(!mesh?.material)return;
+    const src=mesh.material;
+    const tex=src.albedoTexture||src.diffuseTexture||null;
+    const matte=new BABYLON.StandardMaterial('UP_PlayerMat_'+mesh.uniqueId,scene);
+    matte.diffuseColor=new BABYLON.Color3(1,1,1);
+    matte.specularColor=new BABYLON.Color3(.06,.06,.06);
+    matte.emissiveColor=new BABYLON.Color3(.16,.16,.16);
+    matte.backFaceCulling=false;
+    matte.alpha=1;
+    if(tex){
+      matte.diffuseTexture=tex;
+      matte.emissiveTexture=tex;
+      matte.emissiveColor=new BABYLON.Color3(.12,.12,.12);
+    }
+    mesh.material=matte;
+  }
+
   async function loadPlayer(){
     const G=window.UP3D;
     const scene=G.scene;
     const player=G.player;
     const oldRig=scene.getTransformNodeByName('rigRoot');
+
     oldRig?.setEnabled(false);
     document.body.classList.add('glb-player-loading');
 
-    let result=null, loadedFile=null, lastErr=null;
+    let result=null,loadedFile=null,lastErr=null;
     for(const file of FILES){
       try{
         result=await BABYLON.SceneLoader.ImportMeshAsync('',PATH,file,scene);
         loadedFile=file;
         break;
-      }catch(e){ lastErr=e; }
+      }catch(e){
+        lastErr=e;
+      }
     }
+
     if(!result){
       oldRig?.setEnabled(true);
+      document.body.classList.remove('glb-player-loading');
+      document.body.classList.add('glb-player-fallback');
       console.error('[Under Pressure] player load failed',lastErr);
       return;
     }
 
     const meshes=result.meshes||[];
     const groups=result.animationGroups||[];
-    const rigged=groups.length>0 && loadedFile.includes('rigged');
+    const rigged=loadedFile.includes('rigged')&&groups.length>0;
 
     if(rigged){
-      const root=new BABYLON.TransformNode('UP_RiggedPlayerRoot',scene);
-      root.parent=player;
-      root.position.set(0, FEET_OFFSET-(SRC_MIN_Y*SCALE), 0);
-      root.rotation.y=Math.PI;
-      root.scaling.setAll(SCALE);
-
-      const imported=new Set([...(result.meshes||[]),...(result.transformNodes||[])]);
-      for(const node of [...(result.transformNodes||[]),...(result.meshes||[])]){
-        const p=node.parent;
-        if(!p||!imported.has(p)) node.parent=root;
+      // IMPORTANT: keep imported skin/skeleton hierarchy intact.
+      // Babylon's glTF importer creates one __root__ for the whole GLB.
+      const importRoot=meshes.find(m=>m.name==='__root__')||meshes[0];
+      if(!importRoot){
+        throw new Error('Rigged GLB import root missing');
       }
 
-      for(const m of meshes){
-        m.checkCollisions=false;
-        m.isPickable=false;
-        if(m.material){
-          if('metallic' in m.material)m.material.metallic=0;
-          if('roughness' in m.material)m.material.roughness=.72;
-          m.material.backFaceCulling=false;
-        }
+      for(const mesh of meshes){
+        mesh.checkCollisions=false;
+        mesh.isPickable=false;
+        mesh.setEnabled(true);
+        mesh.isVisible=true;
+        mesh.visibility=1;
+        if((mesh.getTotalVertices?.()||0)>0)makeReadableMaterial(scene,mesh);
       }
 
-      const by=(n)=>groups.find(g=>g.name.toLowerCase()===n.toLowerCase()||g.name.toLowerCase().includes(n.toLowerCase()));
+      // Only transform the importer root. Never reparent bones or skinned mesh nodes.
+      importRoot.parent=player;
+      importRoot.rotationQuaternion=null;
+      importRoot.rotation.set(0,Math.PI,0);
+      importRoot.scaling.setAll(SCALE);
+      importRoot.position.set(0,FEET_OFFSET-(SRC_MIN_Y*SCALE),0);
+
+      const by=(n)=>groups.find(g=>{
+        const x=(g.name||'').toLowerCase();
+        return x===n.toLowerCase()||x.includes(n.toLowerCase());
+      });
       const clips={
         idle:by('Idle'),
         run:by('Run'),
@@ -79,8 +107,10 @@
 
       function play(g,loop=true,speed=1){
         if(!g)return;
-        if(current===g && g.isPlaying)return;
-        for(const x of groups)if(x!==g&&x.isPlaying)x.stop();
+        if(current===g&&g.isPlaying)return;
+        for(const x of groups){
+          if(x!==g&&x.isPlaying)x.stop();
+        }
         current=g;
         g.start(loop,speed,g.from,g.to,false);
       }
@@ -92,36 +122,53 @@
         const ok=originalRoll?.(dir);
         if(!ok)return false;
         lockedUntil=performance.now()+650;
-        play(clips.roll,false,1.0);
+        play(clips.roll,false,1);
         return true;
       };
 
       scene.onBeforeRenderObservable.add(()=>{
         if(performance.now()<lockedUntil)return;
+
         const st=G.getStealthState?.()||{speed:0,crouching:false,running:false};
         const dy=player.position.y-prevY;
         prevY=player.position.y;
 
         if(Math.abs(dy)>.018){
-          play(clips.jump,false,1.0);
+          play(clips.jump,false,1);
         }else if(st.crouching){
-          play(clips.crouch,true,st.speed>.2?1.1:.85);
+          play(clips.crouch,true,st.speed>.2?1.08:.85);
         }else if(st.speed>.35){
-          play(clips.run,true,st.running?1.15:.78);
+          play(clips.run,true,st.running?1.12:.78);
         }else{
-          play(clips.idle,true,1.0);
+          play(clips.idle,true,1);
         }
       });
 
-      window.UP_MODEL={loaded:true,ready:true,rigged:true,file:loadedFile,root,groups,clips};
+      const fill=new BABYLON.PointLight('UP_PlayerRigFill',new BABYLON.Vector3(0,1,-.8),scene);
+      fill.parent=player;
+      fill.diffuse=new BABYLON.Color3(.72,.82,1);
+      fill.specular=new BABYLON.Color3(.1,.1,.12);
+      fill.intensity=.58;
+      fill.range=5;
+
+      window.UP_MODEL={
+        loaded:true,
+        ready:true,
+        rigged:true,
+        file:loadedFile,
+        root:importRoot,
+        groups,
+        clips
+      };
+
       document.body.classList.remove('glb-player-loading','glb-player-fallback');
       document.body.classList.add('glb-player-loaded');
       window.dispatchEvent(new CustomEvent('up-player-ready'));
-      console.info('[Under Pressure] RIGGED player active',loadedFile,groups.map(g=>g.name));
+      console.info('[Under Pressure] rigged player active',groups.map(g=>g.name));
       return;
     }
 
-    // Static fallback if rigged file has not been uploaded yet.
+    // Static fallback.
     const visual=meshes
       .filter(m=>m&&m.name!=='__root__'&&(m.getTotalVertices?.()||0)>1000)
       .sort((a,b)=>(b.getTotalVertices?.()||0)-(a.getTotalVertices?.()||0))[0];
@@ -134,18 +181,7 @@
     visual.setParent(null);
     visual.rotationQuaternion=null;
     visual.scaling.setAll(SCALE);
-
-    if(visual.material){
-      const src=visual.material;
-      const tex=src.albedoTexture||src.diffuseTexture||null;
-      const matte=new BABYLON.StandardMaterial('UP_PlayerMeshyMaterial',scene);
-      matte.diffuseColor=new BABYLON.Color3(1,1,1);
-      matte.specularColor=new BABYLON.Color3(.08,.08,.08);
-      matte.emissiveColor=new BABYLON.Color3(.14,.14,.14);
-      matte.backFaceCulling=false;
-      if(tex){matte.diffuseTexture=tex;matte.emissiveTexture=tex;}
-      visual.material=matte;
-    }
+    makeReadableMaterial(scene,visual);
 
     const sync=()=>{
       const p=player.getAbsolutePosition();
