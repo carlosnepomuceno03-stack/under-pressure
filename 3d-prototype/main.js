@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='PARKOUR CORE V19';
+const BUILD='RIG+CLIMB V20';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -127,7 +127,13 @@ head.material=rigMat;
 head.checkCollisions=false;
 
 // backpack
-const pack=limbBox('pack',.68,.72,.3,rigRoot,0,.82,.34,rigAccent);
+const pack=limbBox('pack',.68,.72,.3,rigRoot,0,.82,-.34,rigAccent);
+
+// simple face markers so we can always tell which way the character is looking
+const faceMat=mat('face','#101215');
+const nose=limbBox('nose',.13,.14,.15,rigRoot,0,1.67,.34,rigMat);
+const eyeL=limbBox('eyeL',.07,.06,.035,rigRoot,-.12,1.75,.31,faceMat);
+const eyeR=limbBox('eyeR',.07,.06,.035,rigRoot,.12,1.75,.31,faceMat);
 
 // arm hierarchy: shoulder pivot -> upper arm -> elbow pivot -> forearm
 const lShoulder=joint('lShoulder',rigRoot,-.56,1.16,0);
@@ -339,25 +345,36 @@ function rayDown(distance=1.35){
   );
   return scene.pickWithRay(ray,m=>m!==player&&m.checkCollisions);
 }
-function probeWall(distance=1.05,height=.45){
+function probeWall(distance=1.35){
   const dir=playerForward();
-  const ray=new BABYLON.Ray(
-    player.position.add(new BABYLON.Vector3(0,height,0)),
-    dir,
-    distance
-  );
-  const hit=scene.pickWithRay(ray,m=>
-    m!==player&&m!==head&&m!==pack&&m.checkCollisions&&m.metadata?.climbable===true
-  );
-  if(!hit?.hit)return null;
-  return {...hit,dir};
+  const heights=[.28,.72,1.18];
+  let best=null;
+
+  for(const height of heights){
+    const ray=new BABYLON.Ray(
+      player.position.add(new BABYLON.Vector3(0,height,0)),
+      dir,
+      distance
+    );
+    const hit=scene.pickWithRay(ray,m=>
+      m!==player&&m!==head&&m!==pack&&m!==nose&&m!==eyeL&&m!==eyeR&&
+      m.checkCollisions&&m.metadata?.climbable===true
+    );
+    if(hit?.hit&&(!best||hit.distance<best.distance)){
+      best={...hit,dir,height};
+    }
+  }
+  return best;
 }
 function obstacleData(hit){
   const mesh=hit.pickedMesh;
   const bb=mesh.getBoundingInfo().boundingBox;
   const top=bb.maximumWorld.y;
   const feet=player.position.y-1.05;
-  return {mesh,top,feet,height:top-feet,dir:hit.dir.normalize(),bb};
+  return {
+    mesh,top,feet,height:top-feet,dir:hit.dir.normalize(),bb,
+    contact:hit.pickedPoint?hit.pickedPoint.clone():null
+  };
 }
 function mantleTarget(data,inside=.78){
   const {mesh,dir,bb}=data;
@@ -388,10 +405,19 @@ function beginClimb(data){
   activeObstacle=data;
   stateTimer=0;
   vy=0;
+  moveVelocity.set(0,0,0);
 
-  // keep the collider just outside the wall instead of pushing through it
-  const back=data.dir.scale(-.08);
-  player.position.addInPlace(back);
+  // Face the wall exactly so the visual rig and climbing direction agree.
+  player.rotation.y=Math.atan2(data.dir.x,data.dir.z);
+
+  // Pin the collider just outside the wall instead of allowing it to drift through.
+  if(data.contact){
+    const standOff=.47;
+    const anchor=data.contact.subtract(data.dir.scale(standOff));
+    player.position.x=anchor.x;
+    player.position.z=anchor.z;
+    activeObstacle.wallAnchor=new BABYLON.Vector3(anchor.x,0,anchor.z);
+  }
   return true;
 }
 function beginHang(){
@@ -453,11 +479,16 @@ function updateManualParkour(dt,spaceHeld){
       return false;
     }
 
-    // climb vertically while hugging the same wall
-    player.position.y+=3.05*dt;
+    // climb vertically while hugging the SAME wall contact point
+    if(activeObstacle.wallAnchor){
+      const follow=1-Math.exp(-18*dt);
+      player.position.x=BABYLON.Scalar.Lerp(player.position.x,activeObstacle.wallAnchor.x,follow);
+      player.position.z=BABYLON.Scalar.Lerp(player.position.z,activeObstacle.wallAnchor.z,follow);
+    }
+    player.position.y+=2.7*dt;
 
-    // Reach the lip -> transition to a real hanging state, not a snap.
-    if(player.position.y+1.0>=activeObstacle.top-.03){
+    // Reach the lip -> hang clearly below it first.
+    if(player.position.y+1.02>=activeObstacle.top){
       beginHang();
     }
     return true;
@@ -467,8 +498,12 @@ function updateManualParkour(dt,spaceHeld){
     stateTimer+=dt;
     vy=0;
 
-    // visually/physically remain under the ledge
-    player.position.y=activeObstacle.top-.78;
+    // visually/physically remain under the ledge and fixed to the same wall
+    player.position.y=activeObstacle.top-.82;
+    if(activeObstacle.wallAnchor){
+      player.position.x=activeObstacle.wallAnchor.x;
+      player.position.z=activeObstacle.wallAnchor.z;
+    }
 
     if(!spaceHeld){
       parkourState='normal';
@@ -553,15 +588,16 @@ scene.onBeforeRenderObservable.add(()=>{
   const heldMs=spaceHeld?(performance.now()-spacePressedAt):0;
 
   // Enter contextual parkour only from normal movement.
-  if(parkourState==='normal'&&spaceHeld&&heldMs>110&&parkourCooldown<=0){
-    const hit=probeWall(1.08,.48);
+  const forwardIntent=!!(keys.KeyW||keys.ArrowUp);
+  if(parkourState==='normal'&&spaceHeld&&forwardIntent&&heldMs>90&&parkourCooldown<=0){
+    const hit=probeWall(1.35);
     if(hit){
       const data=obstacleData(hit);
 
       // Must genuinely be below the top. This blocks the old edge re-snap bug.
       if(data.height>.42&&player.position.y<data.top+.30){
         if(data.height<1.38)beginVault(data);
-        else if(data.height<6.2)beginClimb(data);
+        else if(data.height<7.5)beginClimb(data);
       }
     }
   }
@@ -598,6 +634,9 @@ scene.onBeforeRenderObservable.add(()=>{
   const moveAmount=BABYLON.Scalar.Clamp(horizontalSpeed/4.7,0,1.5);
   const isJumping=!grounded&&parkourState==='normal';
   const isClimbing=['climb','hang','mantle'].includes(parkourState);
+
+  // Rig stays aligned with collider; no independent visual yaw.
+  rigRoot.rotation.y=0;
 
   animateRig(dt,moveAmount,running&&moveAmount>.1,isJumping,isClimbing);
 
