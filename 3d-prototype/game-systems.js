@@ -15,7 +15,11 @@
     paint:document.getElementById('graffitiCanvas'),
     finish:document.getElementById('finishGraffiti'),
     close:document.getElementById('cancelGraffiti'),
-    complete:document.getElementById('missionComplete')
+    complete:document.getElementById('missionComplete'),
+    combat:document.getElementById('combatHud'),
+    combo:document.getElementById('comboText'),
+    hpBar:document.getElementById('hpBar'),
+    enemyBar:document.getElementById('enemyBar')
   };
 
   const STATE={
@@ -28,7 +32,13 @@
     collected:new Set(),
     totalCollectibles:4,
     graffitiOpen:false,
-    missionComplete:false
+    missionComplete:false,
+    health:100,
+    combo:0,
+    comboTimer:0,
+    combatTarget:null,
+    attacking:false,
+    dodging:false
   };
 
   function toast(msg,ms=1700){
@@ -50,7 +60,7 @@
     if(ui.alertBar)ui.alertBar.style.width=(STATE.alert*100).toFixed(0)+'%';
     if(ui.alertWrap)ui.alertWrap.dataset.state=STATE.alertState;
     if(ui.alertText)ui.alertText.textContent=STATE.alertState==='ALERT'?'PERSEGUIÇÃO':STATE.alertState==='SUSPICIOUS'?'SUSPEITO':'OCULTO';
-    if(ui.collect)ui.collect.textContent='SPRAYS '+STATE.collected.size+'/'+STATE.totalCollectibles;
+    if(ui.collect)ui.collect.textContent='ITENS '+STATE.collected.size+'/'+STATE.totalCollectibles;
   }
 
   const guardMat=G.makeMat('guardUniform','#17202a');
@@ -88,6 +98,10 @@
 
       this.facing=new BABYLON.Vector3(0,0,1);
       this.sees=false;
+      this.hp=100;
+      this.stun=0;
+      this.attackCooldown=0;
+      this.down=false;
     }
     eye(){
       return this.root.position.add(new BABYLON.Vector3(0,1.25,0));
@@ -121,14 +135,23 @@
       this.root.rotation.y=Math.atan2(d.x,d.z);
     }
     update(dt){
+      if(this.down)return {seen:false,dist:999};
+      this.stun=Math.max(0,this.stun-dt);
+      this.attackCooldown=Math.max(0,this.attackCooldown-dt);
+
       const vision=this.canSeePlayer();
       this.sees=vision.seen;
       this.beacon.isVisible=STATE.alertState==='ALERT'||this.sees;
 
+      if(this.stun>0)return vision;
+
       if(STATE.alertState==='ALERT'){
-        this.moveToward(player.position,this.chaseSpeed,dt);
-        if(BABYLON.Vector3.Distance(this.root.position,player.position)<1.35){
-          catchPlayer();
+        const d=BABYLON.Vector3.Distance(this.root.position,player.position);
+        if(d>1.55){
+          this.moveToward(player.position,this.chaseSpeed,dt);
+        }else if(this.attackCooldown<=0&&!STATE.dodging){
+          this.attackCooldown=1.05+Math.random()*.35;
+          damagePlayer(12);
         }
       }else{
         const target=this.points[this.index];
@@ -139,6 +162,85 @@
       }
       return vision;
     }
+  }
+
+  function setEnemyBar(v){
+    if(ui.enemyBar)ui.enemyBar.style.width=Math.max(0,Math.min(100,v))+'%';
+  }
+  function setHp(v){
+    STATE.health=Math.max(0,Math.min(100,v));
+    if(ui.hpBar)ui.hpBar.style.width=STATE.health+'%';
+  }
+  function damagePlayer(amount){
+    if(STATE.dodging||STATE.caught||STATE.missionComplete)return;
+    setHp(STATE.health-amount);
+    toast('-'+amount+' HP',650);
+    if(STATE.health<=0)catchPlayer();
+  }
+  function nearestGuard(maxDist=2.4){
+    let best=null,bestD=maxDist;
+    for(const g of guards){
+      if(g.down)continue;
+      const d=BABYLON.Vector3.Distance(player.position,g.root.position);
+      if(d<bestD){best=g;bestD=d;}
+    }
+    return best;
+  }
+  function hitGuard(g,damage,stun=.25){
+    if(!g||g.down)return;
+    g.hp=Math.max(0,g.hp-damage);
+    g.stun=Math.max(g.stun,stun);
+    STATE.combo++;
+    STATE.comboTimer=1.3;
+    STATE.combatTarget=g;
+    setEnemyBar(g.hp);
+    if(ui.combo)ui.combo.textContent='COMBO x'+STATE.combo;
+    ui.combat?.classList.add('show');
+    if(g.hp<=0){
+      g.down=true;
+      g.root.rotation.z=Math.PI/2;
+      g.beacon.isVisible=false;
+      toast('GUARDA DERRUBADO',900);
+      setTimeout(()=>g.root.setEnabled(false),450);
+      STATE.combatTarget=null;
+      setEnemyBar(0);
+    }
+  }
+  function doAttack(type){
+    if(STATE.attacking||STATE.dodging||STATE.graffitiOpen||STATE.caught)return;
+    const g=nearestGuard(type==='heavy'?2.45:2.1);
+    if(!g)return;
+    STATE.attacking=true;
+    const dmg=type==='heavy'?34:20;
+    const stun=type==='heavy'?.55:.25;
+    hitGuard(g,dmg,stun);
+    setTimeout(()=>STATE.attacking=false,type==='heavy'?420:230);
+  }
+  function doDodge(){
+    if(STATE.dodging||STATE.graffitiOpen||STATE.caught)return;
+    STATE.dodging=true;
+    const dir=playerForward ? playerForward() : new BABYLON.Vector3(0,0,1);
+    try{ player.moveWithCollisions(dir.scale(-1.6)); }catch(e){}
+    setTimeout(()=>STATE.dodging=false,420);
+  }
+  function stealthTakedown(){
+    if(STATE.graffitiOpen||STATE.alertState==='ALERT')return false;
+    let best=null,bestD=1.6;
+    for(const g of guards){
+      if(g.down)continue;
+      const d=BABYLON.Vector3.Distance(player.position,g.root.position);
+      if(d<bestD){
+        const toPlayer=player.position.subtract(g.root.position);toPlayer.y=0;toPlayer.normalize();
+        const facingDot=BABYLON.Vector3.Dot(g.facing,toPlayer);
+        if(facingDot<-.25){best=g;bestD=d;}
+      }
+    }
+    if(best){
+      hitGuard(best,100,1);
+      toast('TAKEDOWN',900);
+      return true;
+    }
+    return false;
   }
 
   const guards=[
@@ -152,7 +254,7 @@
     STATE.alert=0;
     STATE.alertState='SAFE';
     G.setGameplayLocked(false);
-    player.position.copyFrom(STATE.checkpoint);
+    player.position.set(-16,1.2,27);
     G.resetMotion();
     guards[0].root.position.copyFrom(guards[0].points[0]);
     guards[1].root.position.copyFrom(guards[1].points[0]);
@@ -166,13 +268,6 @@
     toast('VOCÊ FOI PEGO',1100);
     setTimeout(respawn,1050);
   }
-
-  // checkpoint marker
-  const cpMat=G.makeMat('checkpointMat','#41e7ff');
-  cpMat.emissiveColor=new BABYLON.Color3(.05,.55,.65);
-  const checkpoint=BABYLON.MeshBuilder.CreateTorus('checkpoint',{diameter:1.8,thickness:.10,tessellation:24},scene);
-  checkpoint.position.set(8,.16,4);checkpoint.rotation.x=Math.PI/2;checkpoint.material=cpMat;
-  checkpoint.checkCollisions=false;checkpoint.isPickable=false;
 
   // collectibles
   const pickupMat=[
@@ -296,6 +391,15 @@
     }
   }catch(e){}
 
+  // combat controls
+  window.addEventListener('keydown',e=>{
+    if(e.code==='KeyE'){
+      if(!stealthTakedown())doAttack('light');
+    }
+    if(e.code==='KeyR')doAttack('heavy');
+    if(e.code==='KeyQ')doDodge();
+  });
+
   // keyboard interaction
   let fPressed=false;
   window.addEventListener('keydown',e=>{
@@ -309,15 +413,6 @@
   });
   window.addEventListener('keyup',e=>{if(e.code==='KeyF')fPressed=false});
 
-  function updateCheckpoint(){
-    if(STATE.checkpoint2)return;
-    if(BABYLON.Vector3.Distance(player.position,checkpoint.position)<1.55){
-      STATE.checkpoint2=true;
-      STATE.checkpoint.copyFrom(new BABYLON.Vector3(8,1.2,4));
-      checkpoint.setEnabled(false);
-      toast('CHECKPOINT',1500);
-    }
-  }
   function updatePickups(dt){
     for(const p of pickups){
       if(p.collected)continue;
@@ -328,7 +423,13 @@
         p.collected=true;
         p.root.setEnabled(false);
         STATE.collected.add(p.name);
-        toast(p.name.toUpperCase()+' COLETADO',1300);
+        const effect={
+          'Skinny Cap':'CAP FINO LIBERADO NO GRAFFITI',
+          'Fat Cap':'CAP LARGO LIBERADO NO GRAFFITI',
+          'UV':'COR UV LIBERADA',
+          'Luvas':'-25% GASTO DE TINTA'
+        }[p.name]||'COLETADO';
+        toast(p.name.toUpperCase()+' • '+effect,1700);
       }
     }
   }
@@ -372,11 +473,20 @@
   scene.onBeforeRenderObservable.add(()=>{
     const dt=Math.min(.033,G.engine.getDeltaTime()/1000);
     updatePickups(dt);
-    updateCheckpoint();
     updateMission();
     updateAlert(dt);
     graffitiMarker.rotation.z+=dt*.7;
-    checkpoint.rotation.z+=dt*.4;
+    STATE.comboTimer=Math.max(0,STATE.comboTimer-dt);
+    if(STATE.comboTimer<=0&&STATE.combo>0){
+      STATE.combo=0;
+      if(ui.combo)ui.combo.textContent='COMBO x0';
+    }
+    if(STATE.combatTarget&&!STATE.combatTarget.down){
+      setEnemyBar(STATE.combatTarget.hp);
+      ui.combat?.classList.add('show');
+    }else if(STATE.alertState!=='ALERT'){
+      ui.combat?.classList.remove('show');
+    }
     updateHUD();
   });
 
