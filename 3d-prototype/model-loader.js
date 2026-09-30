@@ -2,18 +2,18 @@
   const PATH='./3d-prototype/assets/characters/player/';
   const FILE='player_meshy.glb';
 
-  // Real source bounds from the uploaded Meshy GLB.
   const SRC_MIN_Y=-0.9509469866752625;
   const SRC_HEIGHT=1.8981509804725647;
-  const TARGET_HEIGHT=2.28;
+  const TARGET_HEIGHT=2.18;
   const SCALE=TARGET_HEIGHT/SRC_HEIGHT;
+  const FEET_OFFSET=-1.46;
 
   function boot(){
     if(!window.UP3D?.scene||!window.BABYLON?.SceneLoader){
       setTimeout(boot,50);
       return;
     }
-    setTimeout(loadMeshy,250);
+    setTimeout(loadMeshy,300);
   }
 
   async function loadMeshy(){
@@ -22,43 +22,40 @@
     const player=G.player;
     const oldRig=scene.getTransformNodeByName('rigRoot');
 
-    // Avoid showing the blocky fallback while the real model arrives.
     oldRig?.setEnabled(false);
     document.body.classList.add('glb-player-loading');
 
+    let visual=null;
+
     try{
       const result=await BABYLON.SceneLoader.ImportMeshAsync('',PATH,FILE,scene);
-      const visual=(result.meshes||[])
+
+      visual=(result.meshes||[])
         .filter(m=>m && m.name!=='__root__' && (m.getTotalVertices?.()||0)>1000)
         .sort((a,b)=>(b.getTotalVertices?.()||0)-(a.getTotalVertices?.()||0))[0];
 
       if(!visual)throw new Error('player_meshy geometry not found');
 
-      // Detach from Babylon's generated import root and attach DIRECTLY to gameplay collider.
-      visual.parent=null;
+      // Detach completely from importer hierarchy.
+      visual.setParent(null);
       visual.rotationQuaternion=null;
-      visual.position.set(0,0,0);
-      visual.rotation.set(0,Math.PI,0);
       visual.scaling.setAll(SCALE);
+      visual.rotation.set(0,0,0);
 
-      // Put feet at the same visual baseline used by the old procedural character.
-      const desiredFeetY=-1.48;
-      visual.position.y=desiredFeetY-(SRC_MIN_Y*SCALE);
-
-      visual.parent=player;
-      visual.setEnabled(true);
-      visual.isVisible=true;
-      visual.visibility=1;
-      visual.checkCollisions=false;
-      visual.isPickable=false;
-      visual.alwaysSelectAsActiveMesh=true;
-
+      // Keep materials visible from either side.
       if(visual.material){
         visual.material.alpha=1;
         visual.material.backFaceCulling=false;
       }
 
-      // Kill importer helpers only AFTER the real geometry has been detached.
+      visual.checkCollisions=false;
+      visual.isPickable=false;
+      visual.alwaysSelectAsActiveMesh=true;
+      visual.setEnabled(true);
+      visual.isVisible=true;
+      visual.visibility=1;
+
+      // Disable only importer helpers, never the actual geometry.
       for(const node of [...(result.meshes||[]),...(result.transformNodes||[])]){
         if(node===visual)continue;
         if(node.name==='__root__'||node.name==='PreviewFloor'||node.name==='DeliveryCamera'){
@@ -66,32 +63,63 @@
         }
       }
 
-      visual.computeWorldMatrix(true);
+      const syncVisual=()=>{
+        // World-space follow: avoids all parent/root transform bugs.
+        const p=player.getAbsolutePosition();
+        visual.position.x=p.x;
+        visual.position.z=p.z;
+
+        // Feet baseline based on the real Meshy source bounds.
+        visual.position.y=p.y + FEET_OFFSET - (SRC_MIN_Y*SCALE);
+
+        // Preserve the already-approved movement orientation.
+        visual.rotation.y=player.rotation.y + Math.PI;
+
+        visual.computeWorldMatrix(true);
+      };
+
+      syncVisual();
+
+      // Force a test of actual world-space bounds.
       visual.refreshBoundingInfo?.();
       const bb=visual.getBoundingInfo().boundingBox;
       const h=bb.maximumWorld.y-bb.minimumWorld.y;
-      const center=bb.centerWorld;
-      const dist=BABYLON.Vector3.Distance(center,player.getAbsolutePosition());
 
-      if(!Number.isFinite(h)||h<1.5||h>3.2||!Number.isFinite(dist)||dist>4){
-        throw new Error('Meshy transform invalid: h='+h+' dist='+dist);
+      if(!Number.isFinite(h)||h<1.4||h>3.0){
+        throw new Error('Meshy world height invalid: '+h);
       }
+
+      // Bright debug marker at chest height for this build only.
+      // If model fails to render but this marker is visible, the issue is material/geometry.
+      const debug=BABYLON.MeshBuilder.CreateSphere('UP_PlayerDebugMarker',{diameter:.12,segments:8},scene);
+      debug.material=new BABYLON.StandardMaterial('UP_PlayerDebugMat',scene);
+      debug.material.emissiveColor=new BABYLON.Color3(1,0,.55);
+      debug.isPickable=false;
+      debug.checkCollisions=false;
+
+      scene.onBeforeRenderObservable.add(()=>{
+        syncVisual();
+        const p=player.getAbsolutePosition();
+        debug.position.set(p.x,p.y+.55,p.z);
+      });
 
       window.UP_MODEL={
         loaded:true,
         file:FILE,
         rigged:false,
         visual,
+        debug,
         scale:SCALE,
         worldHeight:h
       };
 
       document.body.classList.remove('glb-player-loading','glb-player-fallback');
       document.body.classList.add('glb-player-loaded');
-      console.info('[Under Pressure] Meshy player visible',{height:h,scale:SCALE,dist});
+      console.info('[Under Pressure] Meshy world-follow active',{height:h,scale:SCALE});
 
     }catch(err){
       console.error('[Under Pressure] Meshy load failed',err);
+      if(visual)visual.setEnabled(false);
       oldRig?.setEnabled(true);
       document.body.classList.remove('glb-player-loading');
       document.body.classList.add('glb-player-fallback');
