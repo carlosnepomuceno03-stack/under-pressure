@@ -52,3 +52,22 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090b10;fon
 .combatLine b{display:block;height:100%;width:100%;background:#5ff0bf}
 .combatLine.enemy b{background:#ff4c61}
 #comboText{text-align:right;font-size:11px;font-weight:900;color:#ffd34e;letter-spacing:.08em;margin-top:5px}
+
+#stealthState{font-size:9px;color:#8df6d0;font-weight:900;letter-spacing:.06em}
+.paintPanel{width:min(980px,94vw)}
+.paintStats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+.paintStats label{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:7px;font-size:9px;font-weight:900;color:#cfd7e6;letter-spacing:.05em}
+.paintStats i{height:7px;background:#222936;border-radius:20px;overflow:hidden}
+.paintStats b{display:block;height:100%;width:100%;background:#41e7ff}
+#pressureBar{background:#ffd34e}#inkBar{background:#ff4c8b}
+.paintStage{position:relative;width:100%;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:#b7afa5}
+#graffitiCanvas,#guideCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#graffitiCanvas{z-index:1;cursor:crosshair}
+#guideCanvas{z-index:2;pointer-events:none;mix-blend-mode:multiply;opacity:.65}
+.paintTools .uv{background:#9b65ff}
+.paintTools button.locked,.paintTools button:disabled{opacity:.28;cursor:not-allowed;filter:grayscale(.65)}
+.paintTools .cap{font-size:10px;padding:9px 10px}
+.paintTools .cap.active{outline:2px solid #41e7ff;background:#263848}
+.toolSep{width:1px;height:28px;background:rgba(255,255,255,.14)}
+#shakeCan{background:#2f4051!important;color:#ffd34e!important}
+.paintHint{margin-top:8px;font-size:10px;color:#8f98a8;text-align:center}
