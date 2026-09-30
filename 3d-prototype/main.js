@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='RIG+CLIMB V20';
+const BUILD='MOVEMENT V21';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -305,7 +305,10 @@ const keys={};
 let spacePressedAt=0;
 let spaceWasDown=false;
 window.addEventListener('keydown',e=>{
-  if(e.code==='Space'&&!keys.Space)spacePressedAt=performance.now();
+  if(e.code==='Space'&&!keys.Space){
+    spacePressedAt=performance.now();
+    jumpBufferTimer=.13;
+  }
   keys[e.code]=true;
 });
 window.addEventListener('keyup',e=>{
@@ -318,6 +321,10 @@ let grounded=false;
 let wasGrounded=false;
 let airTime=0;
 let landTimer=0;
+let coyoteTimer=0;
+let jumpBufferTimer=0;
+let jumpConsumed=false;
+let lastVerticalSpeed=0;
 
 let moveVelocity=BABYLON.Vector3.Zero();
 let parkourState='normal'; // normal | climb | hang | mantle | vault
@@ -541,13 +548,26 @@ scene.onBeforeRenderObservable.add(()=>{
 
   updateCamera(dt);
 
+  // Small camera feedback for speed/landing without changing controls.
+  const sprintingNow=!!(keys.ShiftLeft||keys.ShiftRight);
+  const targetFov=sprintingNow&&parkourState==='normal'?.91:.84;
+  camera.fov=BABYLON.Scalar.Lerp(camera.fov,targetFov,1-Math.exp(-6*dt));
+
   const down=rayDown(1.34);
   grounded=!!(down&&down.hit);
 
+  jumpBufferTimer=Math.max(0,jumpBufferTimer-dt);
+
   if(grounded){
-    if(!wasGrounded&&airTime>.18)landTimer=.16;
+    coyoteTimer=.12;
+    jumpConsumed=false;
+
+    if(!wasGrounded&&airTime>.18){
+      landTimer=airTime>.62?.28:.17;
+    }
     airTime=0;
   }else{
+    coyoteTimer=Math.max(0,coyoteTimer-dt);
     airTime+=dt;
   }
   wasGrounded=grounded;
@@ -610,14 +630,27 @@ scene.onBeforeRenderObservable.add(()=>{
       player.moveWithCollisions(moveVelocity.scale(dt));
     }
 
-    // Jump only on initial press.
-    if(spaceHeld&&!spaceWasDown&&grounded){
-      vy=7.5;
+    // Responsive jump:
+    // - short input buffer before landing
+    // - coyote time after leaving an edge
+    // - release Space early for a shorter jump
+    if(jumpBufferTimer>0&&coyoteTimer>0&&!jumpConsumed){
+      vy=7.65;
+      jumpConsumed=true;
+      jumpBufferTimer=0;
+      coyoteTimer=0;
       spaceWasDown=true;
     }
 
+    if(!spaceHeld&&vy>2.1){
+      vy-=24*dt;
+    }
+
+    lastVerticalSpeed=vy;
+
     if(!grounded||vy>0){
-      vy-=18.5*dt;
+      const gravity=vy>0?17.2:20.5;
+      vy-=gravity*dt;
       player.moveWithCollisions(new BABYLON.Vector3(0,vy*dt,0));
     }else{
       vy=-.35;
@@ -632,6 +665,11 @@ scene.onBeforeRenderObservable.add(()=>{
   const moved=player.position.subtract(lastPlayerPos);
   const horizontalSpeed=Math.sqrt(moved.x*moved.x+moved.z*moved.z)/Math.max(dt,.001);
   const moveAmount=BABYLON.Scalar.Clamp(horizontalSpeed/4.7,0,1.5);
+
+  if(grounded&&moveAmount>.08&&parkourState==='normal'){
+    const bob=Math.sin(animClock*(running?10.2:6.8))*(running?.018:.010);
+    camera.position.y+=bob;
+  }
   const isJumping=!grounded&&parkourState==='normal';
   const isClimbing=['climb','hang','mantle'].includes(parkourState);
 
@@ -642,10 +680,14 @@ scene.onBeforeRenderObservable.add(()=>{
 
   // Extra readability for landing and mantle.
   if(landTimer>0){
-    const k=landTimer/.16;
-    torso.rotation.x+=.18*k;
-    lKnee.rotation.x+=.22*k;
-    rKnee.rotation.x+=.22*k;
+    const duration=airTime>.62?.28:.17;
+    const k=BABYLON.Scalar.Clamp(landTimer/Math.max(.01,duration),0,1);
+    torso.rotation.x+=.22*k;
+    lKnee.rotation.x+=.32*k;
+    rKnee.rotation.x+=.32*k;
+    lHip.rotation.x+=.08*k;
+    rHip.rotation.x+=.08*k;
+    rigRoot.position.y-=.055*k;
   }
   if(parkourState==='hang'){
     lShoulder.rotation.x=-2.15;
