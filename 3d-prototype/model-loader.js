@@ -43,9 +43,9 @@
 
       const modelRoot=new BABYLON.TransformNode('UP_Player_ModelRoot',scene);
       modelRoot.parent=player;
-      modelRoot.position.set(0,-1.05,0);
+      modelRoot.position.set(0,0,0);
       modelRoot.rotation.y=Math.PI;
-      modelRoot.scaling.setAll(.92);
+      modelRoot.scaling.setAll(1.05);
 
       // Parent only top-level imported transform/mesh nodes so the rig hierarchy stays intact.
       const topNodes=[];
