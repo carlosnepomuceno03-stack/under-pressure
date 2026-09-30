@@ -1,0 +1,35 @@
+UNDER PRESSURE V10 — CORE FIX
+
+PORTA
+http://127.0.0.1:9333
+
+CORREÇÕES PRINCIPAIS
+- Escorrido refeito com contador de tempo parado baseado em posição real.
+- Spray, Marker e Drip agora podem escorrer:
+  • Drip: começa mais cedo e escorre mais.
+  • Spray: atraso médio.
+  • Marker: demora mais e escorre mais fino.
+- Polícia agora só sobe quando:
+  1. você está efetivamente pintando;
+  2. o CONE DE LUZ passa por cima do ponto do mouse/dedo na parede.
+- A polícia não usa mais a posição do personagem para contar alerta.
+- Aviso sonoro/apito continua quando a barra fica alta.
+- TENTAR DE NOVO usa reinício real da cena, para não travar.
+- Máscara não é mais "colada" dentro das texturas do personagem.
+  • frente: máscara inteira;
+  • andando para direita/esquerda: apenas metade correspondente;
+  • costas: máscara some.
+- Corrigido um frame de caminhada de costas que mostrava o personagem de frente.
+- Máscara ajustada para ficar no rosto e acompanhar a direção.
+- Painter usa máscara separada e pose de spray limpa.
+- Trilha continua sendo hip-hop/boom-bap original inspirada no clima noventista, sem copiar faixas específicas.
+
+CONTROLES
+WASD/setas = andar
+E = interagir
+F2 = colisões
+M = áudio no menu
+Mouse/dedo = pintar
+ESPAÇO = chacoalhar a lata
+ENTER = finalizar bônus
+ESC = voltar

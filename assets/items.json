@@ -1,0 +1,122 @@
+{
+  "hat_crown": {
+    "thumb": "assets/items/hat_crown_thumb.png",
+    "img": "assets/items/hat_crown.png"
+  },
+  "hat_nyc": {
+    "thumb": "assets/items/hat_nyc_thumb.png",
+    "img": "assets/items/hat_nyc.png"
+  },
+  "hat_white": {
+    "thumb": "assets/items/hat_white_thumb.png",
+    "img": "assets/items/hat_white.png"
+  },
+  "hat_rebel": {
+    "thumb": "assets/items/hat_rebel_thumb.png",
+    "img": "assets/items/hat_rebel.png"
+  },
+  "hair_puff": {
+    "thumb": "assets/items/hair_puff_thumb.png",
+    "img": "assets/items/hair_puff.png"
+  },
+  "hair_braids": {
+    "thumb": "assets/items/hair_braids_thumb.png",
+    "img": "assets/items/hair_braids.png"
+  },
+  "hair_curls": {
+    "thumb": "assets/items/hair_curls_thumb.png",
+    "img": "assets/items/hair_curls.png"
+  },
+  "hair_dreads": {
+    "thumb": "assets/items/hair_dreads_thumb.png",
+    "img": "assets/items/hair_dreads.png"
+  },
+  "top_tee": {
+    "thumb": "assets/items/top_tee_thumb.png",
+    "img": "assets/items/top_tee.png"
+  },
+  "top_hoodie": {
+    "thumb": "assets/items/top_hoodie_thumb.png",
+    "img": "assets/items/top_hoodie.png"
+  },
+  "top_jacket": {
+    "thumb": "assets/items/top_jacket_thumb.png",
+    "img": "assets/items/top_jacket.png"
+  },
+  "top_oversize": {
+    "thumb": "assets/items/top_oversize_thumb.png",
+    "img": "assets/items/top_oversize.png"
+  },
+  "pants_cargo": {
+    "thumb": "assets/items/pants_cargo_thumb.png",
+    "img": "assets/items/pants_cargo.png"
+  },
+  "pants_jeans": {
+    "thumb": "assets/items/pants_jeans_thumb.png",
+    "img": "assets/items/pants_jeans.png"
+  },
+  "pants_tactical": {
+    "thumb": "assets/items/pants_tactical_thumb.png",
+    "img": "assets/items/pants_tactical.png"
+  },
+  "bag_crown": {
+    "thumb": "assets/items/bag_crown_thumb.png",
+    "img": "assets/items/bag_crown.png"
+  },
+  "bag_street": {
+    "thumb": "assets/items/bag_street_thumb.png",
+    "img": "assets/items/bag_street.png"
+  },
+  "bag_graffiti": {
+    "thumb": "assets/items/bag_graffiti_thumb.png",
+    "img": "assets/items/bag_graffiti.png"
+  },
+  "shoes_classic": {
+    "thumb": "assets/items/shoes_classic_thumb.png",
+    "img": "assets/items/shoes_classic.png"
+  },
+  "shoes_skate": {
+    "thumb": "assets/items/shoes_skate_thumb.png",
+    "img": "assets/items/shoes_skate.png"
+  },
+  "shoes_runner": {
+    "thumb": "assets/items/shoes_runner_thumb.png",
+    "img": "assets/items/shoes_runner.png"
+  },
+  "shoes_hightop": {
+    "thumb": "assets/items/shoes_hightop_thumb.png",
+    "img": "assets/items/shoes_hightop.png"
+  },
+  "acc_headphones": {
+    "thumb": "assets/items/acc_headphones_thumb.png",
+    "img": "assets/items/acc_headphones.png"
+  },
+  "acc_glasses": {
+    "thumb": "assets/items/acc_glasses_thumb.png",
+    "img": "assets/items/acc_glasses.png"
+  },
+  "acc_chain": {
+    "thumb": "assets/items/acc_chain_thumb.png",
+    "img": "assets/items/acc_chain.png"
+  },
+  "acc_mask": {
+    "thumb": "assets/items/acc_mask_thumb.png",
+    "img": "assets/items/acc_mask.png"
+  },
+  "spray_pink": {
+    "thumb": "assets/items/spray_pink_thumb.png",
+    "img": "assets/items/spray_pink.png"
+  },
+  "spray_yellow": {
+    "thumb": "assets/items/spray_yellow_thumb.png",
+    "img": "assets/items/spray_yellow.png"
+  },
+  "spray_blue": {
+    "thumb": "assets/items/spray_blue_thumb.png",
+    "img": "assets/items/spray_blue.png"
+  },
+  "spray_tag": {
+    "thumb": "assets/items/spray_tag_thumb.png",
+    "img": "assets/items/spray_tag.png"
+  }
+}

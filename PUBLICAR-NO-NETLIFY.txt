@@ -1,0 +1,27 @@
+UNDER PRESSURE — PACOTE PRONTO PARA NETLIFY
+
+PASSO A PASSO
+1. Entre em app.netlify.com
+2. Crie uma conta gratuita.
+3. Procure a opção de criar um site por arrastar e soltar ("Deploy manually" / "Drag and drop").
+4. Arraste A PASTA UNDER_PRESSURE_PUBLICAR_NETLIFY inteira para o Netlify.
+5. Aguarde o upload.
+6. O Netlify vai gerar um link público parecido com:
+   https://nome-aleatorio.netlify.app
+7. Copie esse link e mande no WhatsApp.
+
+IPHONE
+- Abrir no Safari.
+- Girar o aparelho na horizontal.
+- Compartilhar > Adicionar à Tela de Início.
+
+ANDROID
+- Abrir no Chrome.
+- Girar o aparelho na horizontal.
+- Menu ⋮ > Adicionar à tela inicial / Instalar app.
+
+IMPORTANTE
+- O link público funciona fora do seu Wi-Fi.
+- Você não precisa deixar seu PC ligado.
+- Para atualizar o jogo depois, faça um novo deploy da pasta atualizada.
+- A primeira abertura precisa de internet porque o Phaser ainda é carregado pela internet.

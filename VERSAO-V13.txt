@@ -1,0 +1,15 @@
+UNDER PRESSURE — V13 CLEAN
+- 3 missões
+- mapa expandido com setores reaproveitados
+- minimapa
+- câmera mais próxima
+- hitboxes revisados
+- tela cheia
+- botão voltar na missão
+- graffiti concluído persiste na parede
+- fase 2 com policiais temporários baseados no sprite do jogador
+- preto e branco na pintura
+- pressão/velocidade variando espessura
+- escorridos
+- balde de tinta
+- latas lendárias / cores exclusivas

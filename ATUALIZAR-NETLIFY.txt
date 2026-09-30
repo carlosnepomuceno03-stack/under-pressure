@@ -1,0 +1,30 @@
+UNDER PRESSURE — ATUALIZAÇÃO MOBILE V2
+
+O QUE MUDOU
+- joystick do celular ficou bem maior;
+- botão E ficou bem maior;
+- ferramentas de pintura e CHACOALHAR ficaram maiores no touch;
+- botão ← MAPA adicionado à gameplay do graffiti;
+- botão TELA CHEIA no mapa;
+- Android / navegadores que suportam Fullscreen API tentam entrar em tela cheia;
+- iPhone Safari mostra instrução para Adicionar à Tela de Início, que é a forma mais próxima de tela cheia real no iPhone;
+- uso de 100dvh e safe areas para reduzir espaço desperdiçado pela interface do navegador.
+
+COMO ATUALIZAR O LINK QUE VOCÊ JÁ PUBLICOU
+No Netlify, abra o site lucky-profiterole-d3faaf.
+Vá em Deploys.
+Faça um novo deploy manual arrastando a pasta UNDER_PRESSURE_PUBLICAR_NETLIFY_V2.
+
+Você pode manter o mesmo endereço:
+https://lucky-profiterole-d3faaf.netlify.app
+
+IPHONE — MELHOR EXPERIÊNCIA
+1. Abra o link no Safari.
+2. Compartilhar.
+3. Adicionar à Tela de Início.
+4. Abra pelo ícone criado.
+5. Use o iPhone na horizontal.
+
+ANDROID
+O botão TELA CHEIA pode funcionar diretamente no navegador.
+Também pode usar “Adicionar à tela inicial / Instalar app”.

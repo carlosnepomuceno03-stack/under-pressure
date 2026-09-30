@@ -1,0 +1,30 @@
+UNDER PRESSURE V11 — PHASE 2 / MOBILE PERFORMANCE
+
+CORREÇÕES
+- Máscara refeita como overlay por FRAME.
+  Ela usa exatamente o mesmo canvas do sprite, então anda grudada no rosto.
+  • frente: inteira;
+  • esquerda/direita: só metade;
+  • costas: overlay vazio (some).
+- Etapa LUZ ficou bem mais fácil e ampla.
+- Metas da missão foram reduzidas para ficarem jogáveis.
+- Mobile otimizado:
+  • menos partículas por pincelada;
+  • menos pontos de interpolação;
+  • limite de drips ativos.
+- Isso reduz bastante travamento na parte de pintar.
+
+FASE 2
+- Depois de concluir o primeiro graffiti, o mapa libera um segundo spot.
+- Dois policiais patrulham o local.
+- Cada policial tem um cone de visão.
+- Você precisa chegar ao segundo objetivo sem permanecer dentro do cone.
+- Se for visto por tempo suficiente, você volta ao ponto inicial.
+- Chegando ao spot, começa a segunda missão de graffiti.
+
+PARA ATUALIZAR O MESMO LINK
+1. Abra seu projeto no Netlify.
+2. Entre em Deploys.
+3. Faça novo deploy manual.
+4. Arraste a pasta UNDER_PRESSURE_V11_PHASE2.
+5. O endereço existente continua o mesmo.
