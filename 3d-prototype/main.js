@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='RIG V18';
+const BUILD='PARKOUR CORE V19';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -309,8 +309,18 @@ window.addEventListener('keyup',e=>{
 
 let vy=0;
 let grounded=false;
-let climbing=false;
+let wasGrounded=false;
+let airTime=0;
+let landTimer=0;
+
+let moveVelocity=BABYLON.Vector3.Zero();
+let parkourState='normal'; // normal | climb | hang | mantle | vault
 let parkourCooldown=0;
+let activeObstacle=null;
+let stateTimer=0;
+let stateDuration=0;
+let stateStart=null;
+let stateEnd=null;
 
 function forwardFlat(){
   return new BABYLON.Vector3(-Math.sin(camYaw),0,Math.cos(camYaw)).normalize();
@@ -321,165 +331,308 @@ function rightFlat(){
 function playerForward(){
   return new BABYLON.Vector3(Math.sin(player.rotation.y),0,Math.cos(player.rotation.y)).normalize();
 }
-function rayAhead(distance=1.25,height=.7){
-  const origin=player.position.add(new BABYLON.Vector3(0,height,0));
-  const ray=new BABYLON.Ray(origin,playerForward(),distance);
-  return scene.pickWithRay(ray,m=>m!==player&&m!==head&&m!==pack&&m.checkCollisions);
-}
-function rayDown(distance=1.3){
-  const ray=new BABYLON.Ray(player.position.add(new BABYLON.Vector3(0,.2,0)),BABYLON.Vector3.Down(),distance);
+function rayDown(distance=1.35){
+  const ray=new BABYLON.Ray(
+    player.position.add(new BABYLON.Vector3(0,.18,0)),
+    BABYLON.Vector3.Down(),
+    distance
+  );
   return scene.pickWithRay(ray,m=>m!==player&&m.checkCollisions);
 }
-function wallProbe(height=.45,distance=1.1){
-  const dirs=[
-    playerForward(),
-    forwardFlat(),
-    new BABYLON.Vector3(-playerForward().z,0,playerForward().x),
-    new BABYLON.Vector3(playerForward().z,0,-playerForward().x)
-  ];
-  let best=null;
-  for(const dir of dirs){
-    const ray=new BABYLON.Ray(player.position.add(new BABYLON.Vector3(0,height,0)),dir,distance);
-    const hit=scene.pickWithRay(ray,m=>m!==player&&m!==head&&m!==pack&&m.checkCollisions&&m.metadata?.climbable===true);
-    if(hit?.hit&&(!best||hit.distance<best.distance))best={...hit,dir};
-  }
-  return best;
+function probeWall(distance=1.05,height=.45){
+  const dir=playerForward();
+  const ray=new BABYLON.Ray(
+    player.position.add(new BABYLON.Vector3(0,height,0)),
+    dir,
+    distance
+  );
+  const hit=scene.pickWithRay(ray,m=>
+    m!==player&&m!==head&&m!==pack&&m.checkCollisions&&m.metadata?.climbable===true
+  );
+  if(!hit?.hit)return null;
+  return {...hit,dir};
 }
-function hasHeadClearance(dir){
-  const origin=player.position.add(new BABYLON.Vector3(0,1.75,0));
-  const ray=new BABYLON.Ray(origin,dir,.85);
-  const hit=scene.pickWithRay(ray,m=>m!==player&&m!==head&&m!==pack&&m.checkCollisions);
-  return !(hit&&hit.hit);
-}
-
-// Mantle landing is computed from the ACTUAL climbed mesh.
-// This prevents the old bug where a downward ray could find some unrelated surface.
-function getMantleLanding(mesh,dir){
+function obstacleData(hit){
+  const mesh=hit.pickedMesh;
   const bb=mesh.getBoundingInfo().boundingBox;
-  const min=bb.minimumWorld, max=bb.maximumWorld;
-  const margin=.58;
+  const top=bb.maximumWorld.y;
+  const feet=player.position.y-1.05;
+  return {mesh,top,feet,height:top-feet,dir:hit.dir.normalize(),bb};
+}
+function mantleTarget(data,inside=.78){
+  const {mesh,dir,bb}=data;
+  const min=bb.minimumWorld,max=bb.maximumWorld;
+  const margin=.46;
 
-  // Move a little INTO the object, then clamp to its real top footprint.
-  const probe=player.position.add(dir.normalize().scale(.72));
+  if((max.x-min.x)<margin*2||(max.z-min.z)<margin*2)return null;
+
+  const probe=player.position.add(dir.scale(inside));
   const x=BABYLON.Scalar.Clamp(probe.x,min.x+margin,max.x-margin);
   const z=BABYLON.Scalar.Clamp(probe.z,min.z+margin,max.z-margin);
+  return new BABYLON.Vector3(x,max.y+1.06,z);
+}
+function beginVault(data){
+  const end=mantleTarget(data,.9);
+  if(!end)return false;
+  parkourState='vault';
+  activeObstacle=data;
+  stateTimer=0;
+  stateDuration=.34;
+  stateStart=player.position.clone();
+  stateEnd=end;
+  vy=0;
+  return true;
+}
+function beginClimb(data){
+  parkourState='climb';
+  activeObstacle=data;
+  stateTimer=0;
+  vy=0;
 
-  // Reject objects too narrow to actually stand on.
-  if((max.x-min.x)<margin*2 || (max.z-min.z)<margin*2) return null;
+  // keep the collider just outside the wall instead of pushing through it
+  const back=data.dir.scale(-.08);
+  player.position.addInPlace(back);
+  return true;
+}
+function beginHang(){
+  if(!activeObstacle)return;
+  parkourState='hang';
+  stateTimer=0;
+  vy=0;
 
-  return new BABYLON.Vector3(x,max.y+1.07,z);
+  // Crucial: stop BELOW the lip. Never place the collider on top yet.
+  const top=activeObstacle.top;
+  player.position.y=Math.min(player.position.y,top-.78);
+}
+function beginMantle(){
+  const end=mantleTarget(activeObstacle,.82);
+  if(!end){
+    parkourState='hang';
+    return false;
+  }
+
+  parkourState='mantle';
+  stateTimer=0;
+  stateDuration=.48;
+  stateStart=player.position.clone();
+  stateEnd=end;
+  vy=0;
+  return true;
+}
+function finishParkour(){
+  parkourState='normal';
+  activeObstacle=null;
+  stateTimer=0;
+  stateStart=null;
+  stateEnd=null;
+  parkourCooldown=.32;
+  vy=-.15;
+}
+function smooth01(t){
+  t=BABYLON.Scalar.Clamp(t,0,1);
+  return t*t*(3-2*t);
+}
+function updateManualParkour(dt,spaceHeld){
+  if(parkourState==='vault'){
+    stateTimer+=dt;
+    const t=BABYLON.Scalar.Clamp(stateTimer/stateDuration,0,1);
+    const u=smooth01(t);
+    const p=BABYLON.Vector3.Lerp(stateStart,stateEnd,u);
+    p.y+=Math.sin(Math.PI*t)*.28;
+    player.position.copyFrom(p);
+    if(t>=1)finishParkour();
+    return true;
+  }
+
+  if(parkourState==='climb'){
+    stateTimer+=dt;
+    if(!spaceHeld){
+      parkourState='normal';
+      activeObstacle=null;
+      vy=-1.2;
+      return false;
+    }
+
+    // climb vertically while hugging the same wall
+    player.position.y+=3.05*dt;
+
+    // Reach the lip -> transition to a real hanging state, not a snap.
+    if(player.position.y+1.0>=activeObstacle.top-.03){
+      beginHang();
+    }
+    return true;
+  }
+
+  if(parkourState==='hang'){
+    stateTimer+=dt;
+    vy=0;
+
+    // visually/physically remain under the ledge
+    player.position.y=activeObstacle.top-.78;
+
+    if(!spaceHeld){
+      parkourState='normal';
+      activeObstacle=null;
+      vy=-1.5;
+      return false;
+    }
+
+    // short readable hang beat before pulling up
+    if(stateTimer>.13)beginMantle();
+    return true;
+  }
+
+  if(parkourState==='mantle'){
+    stateTimer+=dt;
+    const t=BABYLON.Scalar.Clamp(stateTimer/stateDuration,0,1);
+    const u=smooth01(t);
+
+    // 3-stage mantle: rise chest, move over lip, settle feet.
+    const p=BABYLON.Vector3.Lerp(stateStart,stateEnd,u);
+    p.y+=Math.sin(Math.PI*t)*.20;
+    player.position.copyFrom(p);
+
+    if(t>=1)finishParkour();
+    return true;
+  }
+
+  return false;
 }
 
 scene.onBeforeRenderObservable.add(()=>{
   const dt=Math.min(.033,engine.getDeltaTime()/1000);
   parkourCooldown=Math.max(0,parkourCooldown-dt);
+  landTimer=Math.max(0,landTimer-dt);
 
   updateCamera(dt);
 
-  const f=forwardFlat(),r=rightFlat();
-  let move=BABYLON.Vector3.Zero();
-  if(keys.KeyW||keys.ArrowUp)move.addInPlace(f);
-  if(keys.KeyS||keys.ArrowDown)move.subtractInPlace(f);
-  if(keys.KeyD||keys.ArrowRight)move.addInPlace(r);
-  if(keys.KeyA||keys.ArrowLeft)move.subtractInPlace(r);
+  const down=rayDown(1.34);
+  grounded=!!(down&&down.hit);
 
-  const speed=(keys.ShiftLeft||keys.ShiftRight)?7.2:4.6;
-  if(move.lengthSquared()>.001){
-    move.normalize();
-    const yaw=Math.atan2(move.x,move.z);
-    player.rotation.y=BABYLON.Scalar.Lerp(player.rotation.y,yaw,.18);
-    player.moveWithCollisions(move.scale(speed*dt));
+  if(grounded){
+    if(!wasGrounded&&airTime>.18)landTimer=.16;
+    airTime=0;
+  }else{
+    airTime+=dt;
+  }
+  wasGrounded=grounded;
+
+  const f=forwardFlat(),r=rightFlat();
+  let wish=BABYLON.Vector3.Zero();
+  if(keys.KeyW||keys.ArrowUp)wish.addInPlace(f);
+  if(keys.KeyS||keys.ArrowDown)wish.subtractInPlace(f);
+  if(keys.KeyD||keys.ArrowRight)wish.addInPlace(r);
+  if(keys.KeyA||keys.ArrowLeft)wish.subtractInPlace(r);
+
+  const running=!!(keys.ShiftLeft||keys.ShiftRight);
+  const maxSpeed=running?7.2:4.7;
+  const accel=grounded?18:7;
+  const friction=grounded?15:2.2;
+
+  if(wish.lengthSquared()>.001){
+    wish.normalize();
+    const desired=wish.scale(maxSpeed);
+    moveVelocity=BABYLON.Vector3.Lerp(
+      moveVelocity,
+      desired,
+      1-Math.exp(-accel*dt)
+    );
+
+    const yaw=Math.atan2(wish.x,wish.z);
+    let dyaw=((yaw-player.rotation.y+Math.PI)%(Math.PI*2)+Math.PI)%(Math.PI*2)-Math.PI;
+    player.rotation.y+=dyaw*(1-Math.exp(-12*dt));
+  }else{
+    moveVelocity=BABYLON.Vector3.Lerp(
+      moveVelocity,
+      BABYLON.Vector3.Zero(),
+      1-Math.exp(-friction*dt)
+    );
   }
 
-  const down=rayDown(1.35);
-  grounded=!!(down&&down.hit);
-  if(grounded&&vy<0)vy=-.5;
-
-  // SPACE = contextual traversal, inspired by modern off-board skate movement:
-  // tap = jump, hold toward almost any solid surface = grab / climb / mantle.
   const spaceHeld=!!keys.Space;
   const heldMs=spaceHeld?(performance.now()-spacePressedAt):0;
-  const wallHit=spaceHeld?wallProbe(.5,1.18):null;
-  let canGrab=false;
-  let climbData=null;
 
-  if(wallHit&&wallHit.hit&&wallHit.pickedMesh?.metadata?.climbable===true){
-    const mesh=wallHit.pickedMesh;
-    const top=mesh.getBoundingInfo().boundingBox.maximumWorld.y;
-    const feet=player.position.y-1.05;
-    const obstacle=top-feet;
+  // Enter contextual parkour only from normal movement.
+  if(parkourState==='normal'&&spaceHeld&&heldMs>110&&parkourCooldown<=0){
+    const hit=probeWall(1.08,.48);
+    if(hit){
+      const data=obstacleData(hit);
 
-    // Critical anti-snap rule:
-    // the player must actually be BELOW the ledge.
-    // If already standing on/above the object, climbing is disabled.
-    if(obstacle>.28 && player.position.y < top+.72){
-      canGrab=true;
-      climbData={mesh,top,feet,obstacle,dir:wallHit.dir.normalize()};
+      // Must genuinely be below the top. This blocks the old edge re-snap bug.
+      if(data.height>.42&&player.position.y<data.top+.30){
+        if(data.height<1.38)beginVault(data);
+        else if(data.height<6.2)beginClimb(data);
+      }
     }
   }
 
-  climbing=!!(canGrab&&heldMs>120&&parkourCooldown<=0);
+  const manualParkour=updateManualParkour(dt,spaceHeld);
 
-  if(climbing){
-    const {mesh,top,feet,obstacle,dir}=climbData;
-
-    // Low obstacle: only mantle if clearly approaching from below.
-    // No snapping when the player is already at top height / near an edge.
-    if(obstacle>.28&&obstacle<1.35){
-      const landing=getMantleLanding(mesh,dir);
-      if(landing && landing.y > player.position.y+.12){
-        player.position.copyFrom(landing);
-        vy=.08;
-        climbing=false;
-        parkourCooldown=.42;
-        keys.Space=false;
-        spaceWasDown=false;
-      }else{
-        climbing=false;
-        vy=Math.min(vy,0);
-      }
-    }else{
-      // Taller surface: continuously climb while Space is held.
-      vy=0;
-      player.moveWithCollisions(new BABYLON.Vector3(0,3.6*dt,0));
-      player.moveWithCollisions(dir.scale(.5*dt));
-
-      // Mantle only after confirming there is a surface to stand on.
-      if(player.position.y+1.0>=top&&player.position.y<top+.72&&hasHeadClearance(dir)){
-        const landing=getMantleLanding(mesh,dir);
-        if(landing){
-          player.position.copyFrom(landing);
-          climbing=false;
-          parkourCooldown=.35;
-          keys.Space=false;
-          spaceWasDown=false;
-          vy=.12;
-        }else{
-          // Hold at the lip instead of popping over.
-          player.position.y=Math.min(player.position.y,top-.98);
-          vy=0;
-        }
-      }
+  if(!manualParkour){
+    // Horizontal motion remains collision-based.
+    if(moveVelocity.lengthSquared()>.0001){
+      player.moveWithCollisions(moveVelocity.scale(dt));
     }
-  }else{
-    // Jump fires once per press. Holding Space near a surface converts it into climbing.
+
+    // Jump only on initial press.
     if(spaceHeld&&!spaceWasDown&&grounded){
-      vy=7.4;
+      vy=7.5;
       spaceWasDown=true;
     }
-    vy-=18*dt;
-    player.moveWithCollisions(new BABYLON.Vector3(0,vy*dt,0));
+
+    if(!grounded||vy>0){
+      vy-=18.5*dt;
+      player.moveWithCollisions(new BABYLON.Vector3(0,vy*dt,0));
+    }else{
+      vy=-.35;
+    }
+  }else{
+    // No normal velocity fighting the hand-authored parkour path.
+    moveVelocity.scaleInPlace(.45);
   }
+
+  if(!spaceHeld)spaceWasDown=false;
 
   const moved=player.position.subtract(lastPlayerPos);
   const horizontalSpeed=Math.sqrt(moved.x*moved.x+moved.z*moved.z)/Math.max(dt,.001);
-  const moveAmount=BABYLON.Scalar.Clamp(horizontalSpeed/4.6,0,1.5);
-  const isRunning=(keys.ShiftLeft||keys.ShiftRight)&&moveAmount>.1;
-  const isJumping=!grounded&&!climbing;
-  animateRig(dt,moveAmount,isRunning,isJumping,climbing);
+  const moveAmount=BABYLON.Scalar.Clamp(horizontalSpeed/4.7,0,1.5);
+  const isJumping=!grounded&&parkourState==='normal';
+  const isClimbing=['climb','hang','mantle'].includes(parkourState);
+
+  animateRig(dt,moveAmount,running&&moveAmount>.1,isJumping,isClimbing);
+
+  // Extra readability for landing and mantle.
+  if(landTimer>0){
+    const k=landTimer/.16;
+    torso.rotation.x+=.18*k;
+    lKnee.rotation.x+=.22*k;
+    rKnee.rotation.x+=.22*k;
+  }
+  if(parkourState==='hang'){
+    lShoulder.rotation.x=-2.15;
+    rShoulder.rotation.x=-2.15;
+    lElbow.rotation.x=-.55;
+    rElbow.rotation.x=-.55;
+    lKnee.rotation.x=.65;
+    rKnee.rotation.x=.35;
+  }else if(parkourState==='mantle'){
+    const t=BABYLON.Scalar.Clamp(stateTimer/stateDuration,0,1);
+    lShoulder.rotation.x=-1.55+(t*.95);
+    rShoulder.rotation.x=-1.45+(t*.9);
+    lKnee.rotation.x=.85*(1-t);
+    rKnee.rotation.x=.55*(1-t);
+    torso.rotation.x=.22*(1-t);
+  }
+
   lastPlayerPos.copyFrom(player.position);
 
-    if(player.position.y<-5)player.position.set(-16,1.2,27);
+  if(player.position.y<-5){
+    player.position.set(-16,1.2,27);
+    moveVelocity.set(0,0,0);
+    parkourState='normal';
+    activeObstacle=null;
+    vy=0;
+  }
 });
 
 scene.collisionsEnabled=true;
