@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='MESHY VISIBLE+MOTION V52';
+const BUILD='PLAYER PRELOAD+PHYSICS FIX V53';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -1096,6 +1096,7 @@ player.ellipsoid=new BABYLON.Vector3(.42,1.0,.42);
 const rigRoot=new BABYLON.TransformNode('rigRoot',scene);
 rigRoot.parent=player;
 rigRoot.position.set(0,-.05,0);
+rigRoot.setEnabled(false); // Meshy is the primary visual; loader restores this only on failure.
 
 const rigMat=mat('rig','#f0ece3');
 const rigDark=mat('rigDark','#111318');
