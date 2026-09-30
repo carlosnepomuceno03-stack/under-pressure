@@ -139,3 +139,86 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090b10;fon
 .artThumb:before,.artThumb:after{display:none!important}
 .artCard{min-height:136px}
 .artCard.active .artThumb{outline:2px solid #41e7ff;outline-offset:-2px}
+
+/* V37 — landscape iPhone PIECE MODE layout */
+@media (pointer:coarse) and (orientation:landscape), (max-height:520px){
+  #graffitiMode{align-items:stretch;justify-content:stretch;padding:0;background:rgba(4,5,10,.96)}
+  #graffitiMode .paintPanel{
+    box-sizing:border-box;
+    width:100vw;
+    height:100dvh;
+    max-width:none;
+    max-height:none;
+    border-radius:0;
+    border:0;
+    padding:max(6px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));
+    display:grid;
+    grid-template-rows:auto auto auto minmax(0,1fr) auto;
+    gap:5px;
+    overflow:hidden;
+  }
+  #graffitiMode .paintTop{margin:0;min-height:20px}
+  #graffitiMode .paintTop strong{font-size:12px}
+  #graffitiMode #artGallery{margin:0;min-width:0}
+  #graffitiMode .galleryTitle{display:none}
+  #graffitiMode #artGalleryList{
+    display:flex;
+    gap:5px;
+    overflow-x:auto;
+    overflow-y:hidden;
+    padding:1px 1px 3px;
+    scrollbar-width:none;
+  }
+  #graffitiMode #artGalleryList::-webkit-scrollbar{display:none}
+  #graffitiMode .artCard{
+    flex:0 0 132px;
+    min-height:0;
+    height:54px;
+    padding:4px;
+    display:grid;
+    grid-template-columns:48px 1fr;
+    grid-template-rows:18px 14px;
+    column-gap:5px;
+    align-items:center;
+  }
+  #graffitiMode .artCard .artThumb{
+    grid-row:1/3;
+    width:48px;
+    height:44px;
+    margin:0;
+  }
+  #graffitiMode .artCard strong{font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #graffitiMode .artCard span{font-size:7px;margin:0}
+  #graffitiMode .artCard small{display:none}
+  #graffitiMode .paintStats{margin:0;gap:6px}
+  #graffitiMode .paintStats label{font-size:7px;gap:4px}
+  #graffitiMode .paintStats i{height:5px}
+  #graffitiMode .paintStage{
+    width:auto;
+    height:auto;
+    min-height:0;
+    aspect-ratio:auto;
+  }
+  #graffitiMode #graffitiCanvas,#graffitiMode #guideCanvas{
+    width:100%;height:100%;
+  }
+  #graffitiMode .paintTools{
+    margin:0;
+    gap:5px;
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    overflow-y:hidden;
+    padding:2px 0;
+    min-height:42px;
+    scrollbar-width:none;
+  }
+  #graffitiMode .paintTools::-webkit-scrollbar{display:none}
+  #graffitiMode .paintTools button{flex:0 0 auto;padding:8px 10px;font-size:8px}
+  #graffitiMode .paintTools .paint{width:30px;height:30px;padding:0}
+  #graffitiMode .paintTools .cap{font-size:8px;padding:8px}
+  #graffitiMode #finishGraffiti{margin-left:0!important}
+  #graffitiMode .paintHint{display:none}
+  body.touch-game:has(#graffitiMode.show) #mobileControls{display:none!important}
+  body.touch-game:has(#graffitiMode.show) #hud{display:none}
+  body.touch-game:has(#graffitiMode.show) #combatHud{display:none}
+}
