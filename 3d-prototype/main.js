@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='WORLD+CREW V32';
+const BUILD='CLEANUP V33';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -352,51 +352,13 @@ for(const [x,y,z,cold] of [
   pl.range=8;
 }
 
-// TDG crew references scattered through the neighborhood
+// TDG roster retained as world/lore data.
+// Visual tags are intentionally disabled until they can be attached to real wall surfaces.
 const crewNames=['NEPO','TRANE','NOROK','ICON','GOM','MM','OFF','PRIKS','ANJO','SINUK','ASKA','TALYN','PATEK','ERRARO','RODEF','BOLA'];
-function addCrewTag(name,x,y,z,ry=0,scale=1){
-  const tex=new BABYLON.DynamicTexture('tagTex'+name+Math.abs(x+z),{width:512,height:192},scene,false);
-  const c=tex.getContext();
-  c.clearRect(0,0,512,192);
-  c.font='900 104px Arial Black, Arial';
-  c.textAlign='center';c.textBaseline='middle';
-  c.lineWidth=15;c.strokeStyle='#111217';c.fillStyle='#f1efe6';
-  c.strokeText(name,256,96);c.fillText(name,256,96);
-  tex.update();
-  const m=new BABYLON.StandardMaterial('tagMat'+name+Math.abs(x+z),scene);
-  m.diffuseTexture=tex;m.opacityTexture=tex;m.emissiveColor=new BABYLON.Color3(.12,.12,.12);
-  m.backFaceCulling=false;
-  const p=BABYLON.MeshBuilder.CreatePlane('crewTag_'+name,{width:3.4*scale,height:1.28*scale},scene);
-  p.position.set(x,y,z);p.rotation.y=ry;p.material=m;p.checkCollisions=false;p.isPickable=false;
-}
-[
- ['NEPO',-25.8,2.2,28,Math.PI/2,.85],['TRANE',-25.8,2.3,6,Math.PI/2,.8],
- ['NOROK',-25.8,2.1,-15,Math.PI/2,.82],['ICON',3.55,2.1,18,-Math.PI/2,.72],
- ['GOM',8,3.2,13,0,.65],['MM',13,5.55,12,0,.62],['OFF',18,4.2,3,Math.PI/2,.6],
- ['PRIKS',24.5,6.4,5,Math.PI/2,.65],['ANJO',30,5.8,1,0,.58],['SINUK',31,3.2,-7,Math.PI/2,.6],
- ['ASKA',4,1.8,-18,0,.58],['TALYN',11,1.5,-21,0,.58],['PATEK',20,1.8,-22,0,.6],
- ['ERRARO',-5.75,2.0,-25,-Math.PI/2,.62],['RODEF',-10,1.8,-30,0,.62],['BOLA',-2,2.2,31,0,.62]
-].forEach(a=>addCrewTag(...a));
 
-// Stylized Chifrudo landmark inspired by the Valparaíso sculpture.
-const chifMat=mat('chifrudoMat','#8a8f91');
-chifMat.specularColor=new BABYLON.Color3(.08,.08,.08);
-const chifBase=box('chifrudoBase',8,.65,5,40,.32,-18,concrete,false);
-chifBase.checkCollisions=false;
-function chifTube(name,pts,r=.34){
-  const path=pts.map(p=>new BABYLON.Vector3(40+p[0],.65+p[1],-18+p[2]));
-  const t=BABYLON.MeshBuilder.CreateTube(name,{path,radius:r,tessellation:8,cap:BABYLON.Mesh.CAP_ALL},scene);
-  t.material=chifMat;t.checkCollisions=false;t.isPickable=false;return t;
-}
-chifTube('chifLegL',[[-2.6,0,0],[-2,2,.2],[-1.2,3.8,.1],[-.3,4.7,0]],.42);
-chifTube('chifLegR',[[2.6,0,0],[2.1,1.8,-.1],[1.2,3.5,0],[.4,4.8,.1]],.42);
-chifTube('chifBody',[[-.3,4.7,0],[-1.4,6,.2],[-.5,7.2,0],[.8,6.5,-.1],[.4,4.8,.1]],.48);
-chifTube('chifHornL',[[-.6,6.9,0],[-2.4,7.5,.2],[-3.5,8.8,0],[-3.8,10.3,-.2]],.28);
-chifTube('chifHornR',[[.55,6.8,0],[2.0,7.5,-.2],[3.0,8.6,0],[3.2,9.6,.1]],.28);
-chifTube('chifArmL',[[-.8,5.6,0],[-2.4,5.1,.25],[-3.1,4.1,.2]],.34);
-chifTube('chifArmR',[[.7,5.7,0],[2.2,5.2,-.2],[3.0,4.0,-.1]],.34);
-const chifLight=new BABYLON.PointLight('chifrudoLight',new BABYLON.Vector3(40,2.2,-16),scene);
-chifLight.diffuse=new BABYLON.Color3(.25,.75,1);chifLight.intensity=.55;chifLight.range=13;
+// Chifrudo is intentionally not rendered in the blockout anymore.
+// The previous tube approximation was only a placeholder and hurt the visual read.
+// A proper landmark asset will replace it during the art pass.
 
 // player collider + simple humanoid visual rig
 // The capsule remains only for collision; the visible character is built from separate limbs.
