@@ -317,8 +317,8 @@
   function doDodge(){
     if(STATE.dodging||STATE.graffitiOpen||STATE.caught)return;
     STATE.dodging=true;
-    const dir=G.getForward?.()||new BABYLON.Vector3(0,0,1);
-    try{ player.moveWithCollisions(dir.scale(-1.6)); }catch(e){}
+    const dir=G.getMoveDirection?.()||G.getForward?.()||new BABYLON.Vector3(0,0,1);
+    try{ player.moveWithCollisions(dir.scale(1.9)); }catch(e){}
     setTimeout(()=>STATE.dodging=false,420);
   }
   function stealthTakedown(){
@@ -658,6 +658,18 @@
       img.src=saved;
     }
   }catch(e){}
+
+  window.UP3D_ACTIONS={
+    light(){ if(!stealthTakedown())doAttack('light'); },
+    heavy(){ doAttack('heavy'); },
+    dodge(){ doDodge(); },
+    interact(){
+      if(!STATE.graffitiOpen&&!STATE.missionComplete&&BABYLON.Vector3.Distance(player.position,graffitiPoint)<3.1){
+        if(STATE.alertState==='ALERT')toast('PERCA A POLÍCIA PRIMEIRO');
+        else openGraffiti();
+      }
+    }
+  };
 
   // combat controls
   window.addEventListener('keydown',e=>{
