@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='PARKOUR V16';
+const BUILD='RIG V17';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -82,16 +82,145 @@ for(const z of [-28,-14,0,14,28]){
   cyl('pole'+z,.45,8,-8,4,z,concrete);
 }
 
-// player capsule
-const player=BABYLON.MeshBuilder.CreateCapsule('player',{height:2.1,radius:.42},scene);
+// player collider + simple humanoid visual rig
+// The capsule remains only for collision; the visible character is built from separate limbs.
+const player=BABYLON.MeshBuilder.CreateCapsule('playerCollider',{height:2.1,radius:.42},scene);
 player.position=new BABYLON.Vector3(-16,1.2,27);
-player.material=playerMat;
+player.isVisible=false;
 player.checkCollisions=true;
 player.ellipsoid=new BABYLON.Vector3(.42,1.0,.42);
 
-const head=BABYLON.MeshBuilder.CreateSphere('head',{diameter:.7},scene);
-head.parent=player;head.position.y=.75;head.material=playerMat;
-const pack=box('pack',.7,.85,.32,0,0,0,accent);pack.parent=player;pack.position.set(0,.15,.46);pack.checkCollisions=false;
+const rigRoot=new BABYLON.TransformNode('rigRoot',scene);
+rigRoot.parent=player;
+rigRoot.position.set(0,-.05,0);
+
+const rigMat=mat('rig','#d7d4c7');
+const rigDark=mat('rigDark','#22262c');
+const rigAccent=mat('rigAccent','#14d7e8');
+
+function limbBox(name,w,h,d,parent,x,y,z,material=rigMat){
+  const m=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
+  m.parent=parent;
+  m.position.set(x,y,z);
+  m.material=material;
+  m.checkCollisions=false;
+  return m;
+}
+function joint(name,parent,x,y,z){
+  const n=new BABYLON.TransformNode(name,scene);
+  n.parent=parent;
+  n.position.set(x,y,z);
+  return n;
+}
+
+// pelvis + torso
+const pelvis=limbBox('pelvis',.72,.34,.42,rigRoot,0,.08,0,rigDark);
+const torso=limbBox('torso',.86,.92,.46,rigRoot,0,.72,0,rigDark);
+const chest=limbBox('chest',.98,.28,.5,rigRoot,0,1.12,0,rigAccent);
+
+// neck + head
+const neck=limbBox('neck',.24,.18,.24,rigRoot,0,1.36,0,rigMat);
+const head=BABYLON.MeshBuilder.CreateSphere('head',{diameter:.62,segments:10},scene);
+head.parent=rigRoot;
+head.position.set(0,1.68,0);
+head.material=rigMat;
+head.checkCollisions=false;
+
+// backpack
+const pack=limbBox('pack',.68,.72,.3,rigRoot,0,.82,.34,rigAccent);
+
+// arm hierarchy: shoulder pivot -> upper arm -> elbow pivot -> forearm
+const lShoulder=joint('lShoulder',rigRoot,-.56,1.16,0);
+const rShoulder=joint('rShoulder',rigRoot,.56,1.16,0);
+const lUpperArm=limbBox('lUpperArm',.22,.62,.22,lShoulder,0,-.31,0,rigMat);
+const rUpperArm=limbBox('rUpperArm',.22,.62,.22,rShoulder,0,-.31,0,rigMat);
+const lElbow=joint('lElbow',lShoulder,0,-.62,0);
+const rElbow=joint('rElbow',rShoulder,0,-.62,0);
+const lForearm=limbBox('lForearm',.2,.58,.2,lElbow,0,-.29,0,rigMat);
+const rForearm=limbBox('rForearm',.2,.58,.2,rElbow,0,-.29,0,rigMat);
+
+// leg hierarchy: hip pivot -> thigh -> knee pivot -> shin
+const lHip=joint('lHip',rigRoot,-.23,.02,0);
+const rHip=joint('rHip',rigRoot,.23,.02,0);
+const lThigh=limbBox('lThigh',.27,.72,.28,lHip,0,-.36,0,rigDark);
+const rThigh=limbBox('rThigh',.27,.72,.28,rHip,0,-.36,0,rigDark);
+const lKnee=joint('lKnee',lHip,0,-.72,0);
+const rKnee=joint('rKnee',rHip,0,-.72,0);
+const lShin=limbBox('lShin',.24,.7,.25,lKnee,0,-.35,0,rigMat);
+const rShin=limbBox('rShin',.24,.7,.25,rKnee,0,-.35,0,rigMat);
+const lFoot=limbBox('lFoot',.28,.16,.48,lKnee,0,-.72,.11,rigDark);
+const rFoot=limbBox('rFoot',.28,.16,.48,rKnee,0,-.72,.11,rigDark);
+
+let animClock=0;
+let lastPlayerPos=player.position.clone();
+
+function dampAngle(current,target,dt,speed=12){
+  return BABYLON.Scalar.Lerp(current,target,1-Math.exp(-speed*dt));
+}
+
+function animateRig(dt,moveAmount,isRunning,isJumping,isClimbing){
+  animClock+=dt;
+  const runRate=isRunning?11:7;
+  const stride=Math.sin(animClock*runRate);
+  const stride2=Math.sin(animClock*runRate+Math.PI);
+
+  let armL=0,armR=0,legL=0,legR=0;
+  let elbowL=0,elbowR=0,kneeL=0,kneeR=0;
+  let torsoLean=0;
+
+  if(isClimbing){
+    // Alternating reach and step cycle for climbing.
+    const c=Math.sin(animClock*7);
+    armL=-1.9+c*.35;
+    armR=-1.9-c*.35;
+    elbowL=-.45;
+    elbowR=-.45;
+    legL=.65-c*.45;
+    legR=.65+c*.45;
+    kneeL=-.8+c*.35;
+    kneeR=-.8-c*.35;
+    torsoLean=.12;
+  }else if(isJumping){
+    // Air pose: arms slightly up, knees bent.
+    armL=-.55;
+    armR=-.55;
+    elbowL=-.2;
+    elbowR=-.2;
+    legL=.28;
+    legR=.28;
+    kneeL=-.75;
+    kneeR=-.75;
+    torsoLean=.08;
+  }else if(moveAmount>.05){
+    const amp=isRunning?1.0:.62;
+    armL=stride2*amp;
+    armR=stride*amp;
+    legL=stride*amp;
+    legR=stride2*amp;
+    elbowL=-.18-Math.max(0,stride2)*.35;
+    elbowR=-.18-Math.max(0,stride)*.35;
+    kneeL=-Math.max(0,-stride)*.7;
+    kneeR=-Math.max(0,-stride2)*.7;
+    torsoLean=isRunning?.16:.07;
+  }
+
+  lShoulder.rotation.x=dampAngle(lShoulder.rotation.x,armL,dt);
+  rShoulder.rotation.x=dampAngle(rShoulder.rotation.x,armR,dt);
+  lElbow.rotation.x=dampAngle(lElbow.rotation.x,elbowL,dt);
+  rElbow.rotation.x=dampAngle(rElbow.rotation.x,elbowR,dt);
+
+  lHip.rotation.x=dampAngle(lHip.rotation.x,legL,dt);
+  rHip.rotation.x=dampAngle(rHip.rotation.x,legR,dt);
+  lKnee.rotation.x=dampAngle(lKnee.rotation.x,kneeL,dt);
+  rKnee.rotation.x=dampAngle(rKnee.rotation.x,kneeR,dt);
+
+  torso.rotation.x=dampAngle(torso.rotation.x,torsoLean,dt);
+  chest.rotation.x=dampAngle(chest.rotation.x,torsoLean*.65,dt);
+
+  // tiny vertical body bounce while running
+  const bounce=(moveAmount>.05&&!isJumping&&!isClimbing)?Math.abs(stride)*.045:0;
+  rigRoot.position.y=dampAngle(rigRoot.position.y,-.05+bounce,dt,16);
+}
 
 // camera — simple deterministic third-person orbit.
 // No pointer lock, no click, no auto-recentering, no hidden inversion.
@@ -321,7 +450,15 @@ scene.onBeforeRenderObservable.add(()=>{
     player.moveWithCollisions(new BABYLON.Vector3(0,vy*dt,0));
   }
 
-  if(player.position.y<-5)player.position.set(-16,1.2,27);
+  const moved=player.position.subtract(lastPlayerPos);
+  const horizontalSpeed=Math.sqrt(moved.x*moved.x+moved.z*moved.z)/Math.max(dt,.001);
+  const moveAmount=BABYLON.Scalar.Clamp(horizontalSpeed/4.6,0,1.5);
+  const isRunning=(keys.ShiftLeft||keys.ShiftRight)&&moveAmount>.1;
+  const isJumping=!grounded&&!climbing;
+  animateRig(dt,moveAmount,isRunning,isJumping,climbing);
+  lastPlayerPos.copyFrom(player.position);
+
+    if(player.position.y<-5)player.position.set(-16,1.2,27);
 });
 
 scene.collisionsEnabled=true;
