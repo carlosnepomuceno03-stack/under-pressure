@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='VISUAL PASS V27';
+const BUILD='GAMEPLAY V28';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -597,6 +597,7 @@ let jumpConsumed=false;
 let lastVerticalSpeed=0;
 
 let moveVelocity=BABYLON.Vector3.Zero();
+let gameplayLocked=false;
 let parkourState='normal'; // normal | climb | hang | mantle | vault
 let parkourCooldown=0;
 let activeObstacle=null;
@@ -822,6 +823,16 @@ scene.onBeforeRenderObservable.add(()=>{
 
   updateCamera(dt);
 
+  if(gameplayLocked){
+    moveVelocity.set(0,0,0);
+    vy=0;
+    parkourState='normal';
+    activeObstacle=null;
+    animateRig(dt,0,false,false,false);
+    lastPlayerPos.copyFrom(player.position);
+    return;
+  }
+
   // Small camera feedback for speed/landing without changing controls.
   const sprintingNow=!!(keys.ShiftLeft||keys.ShiftRight);
   const targetFov=sprintingNow&&parkourState==='normal'?.91:.84;
@@ -989,6 +1000,22 @@ scene.onBeforeRenderObservable.add(()=>{
     vy=0;
   }
 });
+
+// Stable API for separate gameplay systems. Controls remain owned by this file.
+window.UP3D={
+  scene,engine,canvas,player,camera,muralTex,muralPlane,
+  materials:{metal:metalMat,cyan:cyanGlow,warm:warmGlow},
+  makeMat:mat,
+  makeEmissive:emissiveMat,
+  setGameplayLocked(v){gameplayLocked=!!v;},
+  resetMotion(){
+    moveVelocity.set(0,0,0);
+    vy=0;
+    parkourState='normal';
+    activeObstacle=null;
+    parkourCooldown=.2;
+  }
+};
 
 scene.collisionsEnabled=true;
 engine.runRenderLoop(()=>scene.render());
