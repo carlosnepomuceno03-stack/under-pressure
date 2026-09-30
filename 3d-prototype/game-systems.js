@@ -19,7 +19,17 @@
     combat:document.getElementById('combatHud'),
     combo:document.getElementById('comboText'),
     hpBar:document.getElementById('hpBar'),
-    enemyBar:document.getElementById('enemyBar')
+    enemyBar:document.getElementById('enemyBar'),
+    stealth:document.getElementById('stealthState'),
+    guide:document.getElementById('guideCanvas'),
+    coverage:document.getElementById('coverageBar'),
+    coverageText:document.getElementById('coverageText'),
+    pressure:document.getElementById('pressureBar'),
+    pressureText:document.getElementById('pressureText'),
+    ink:document.getElementById('inkBar'),
+    inkText:document.getElementById('inkText'),
+    rep:document.getElementById('repText'),
+    shake:document.getElementById('shakeCan')
   };
 
   const STATE={
@@ -38,7 +48,8 @@
     comboTimer:0,
     combatTarget:null,
     attacking:false,
-    dodging:false
+    dodging:false,
+    crouching:false
   };
 
   function toast(msg,ms=1700){
@@ -61,6 +72,9 @@
     if(ui.alertWrap)ui.alertWrap.dataset.state=STATE.alertState;
     if(ui.alertText)ui.alertText.textContent=STATE.alertState==='ALERT'?'PERSEGUIÇÃO':STATE.alertState==='SUSPICIOUS'?'SUSPEITO':'OCULTO';
     if(ui.collect)ui.collect.textContent='ITENS '+STATE.collected.size+'/'+STATE.totalCollectibles;
+    const stealth=G.getStealthState?.()||{crouching:false,running:false};
+    STATE.crouching=!!stealth.crouching;
+    if(ui.stealth)ui.stealth.textContent=stealth.crouching?'AGACHADO • SILENCIOSO':(stealth.running?'CORRENDO • BARULHENTO':'EM PÉ');
   }
 
   const guardMat=G.makeMat('guardUniform','#17202a');
@@ -96,6 +110,17 @@
       this.beacon.parent=this.root;this.beacon.position.set(0,1.62,0);this.beacon.material=guardAlert;
       this.beacon.isVisible=false;this.beacon.isPickable=false;
 
+      this.flashlight=new BABYLON.SpotLight(
+        'guardFlashlight'+id,
+        this.root.position.add(new BABYLON.Vector3(0,1.18,0)),
+        new BABYLON.Vector3(0,-.08,1),
+        .58,14,scene
+      );
+      this.flashlight.diffuse=new BABYLON.Color3(1,.92,.68);
+      this.flashlight.specular=new BABYLON.Color3(.4,.36,.24);
+      this.flashlight.intensity=.72;
+      this.flashlight.range=13;
+
       this.facing=new BABYLON.Vector3(0,0,1);
       this.sees=false;
       this.hp=100;
@@ -107,23 +132,36 @@
       return this.root.position.add(new BABYLON.Vector3(0,1.25,0));
     }
     canSeePlayer(){
+      const stealth=G.getStealthState?.()||{crouching:false,running:false,speed:0};
       const eye=this.eye();
-      const target=player.position.add(new BABYLON.Vector3(0,.72,0));
+      const target=player.position.add(new BABYLON.Vector3(0,stealth.crouching?.40:.72,0));
       const delta=target.subtract(eye);
       const dist=delta.length();
-      if(dist>14.5)return {seen:false,dist};
+
+      // Crouching reduces visual range dramatically unless already in pursuit.
+      const maxVision=STATE.alertState==='ALERT'?15:(stealth.crouching?8.2:14.5);
+      if(dist>maxVision)return {seen:false,heard:false,dist};
+
       const dir=delta.normalize();
       const flat=new BABYLON.Vector3(dir.x,0,dir.z).normalize();
       const dot=BABYLON.Vector3.Dot(this.facing,flat);
-      const fov=STATE.alertState==='ALERT'?.30:.58;
-      if(dot<fov)return {seen:false,dist};
+      const fov=STATE.alertState==='ALERT'?.30:(stealth.crouching?.70:.58);
 
-      const ray=new BABYLON.Ray(eye,dir,dist);
-      const hit=scene.pickWithRay(ray,m=>
-        m!==player&&m.checkCollisions&&m.metadata?.guard!==true&&m.isVisible!==false
-      );
-      const blocked=hit?.hit&&hit.distance<dist-.55;
-      return {seen:!blocked,dist};
+      let visible=false;
+      if(dot>=fov){
+        const ray=new BABYLON.Ray(eye,dir,dist);
+        const hit=scene.pickWithRay(ray,m=>
+          m!==player&&m.checkCollisions&&m.metadata?.guard!==true&&m.isVisible!==false
+        );
+        visible=!(hit?.hit&&hit.distance<dist-.55);
+      }
+
+      // Hearing: sprinting is loud, walking is moderate, crouching nearly silent.
+      let hearRadius=.7;
+      if(!stealth.crouching&&stealth.speed>.35)hearRadius=stealth.running?7.2:3.4;
+      const heard=dist<hearRadius;
+
+      return {seen:visible,heard,dist};
     }
     moveToward(target,speed,dt){
       const d=target.subtract(this.root.position);d.y=0;
@@ -140,8 +178,12 @@
       this.attackCooldown=Math.max(0,this.attackCooldown-dt);
 
       const vision=this.canSeePlayer();
-      this.sees=vision.seen;
-      this.beacon.isVisible=STATE.alertState==='ALERT'||this.sees;
+      this.sees=vision.seen||vision.heard;
+      this.beacon.isVisible=STATE.alertState==='ALERT'||vision.seen;
+
+      const eye=this.eye();
+      this.flashlight.position.copyFrom(eye);
+      this.flashlight.direction.copyFrom(new BABYLON.Vector3(this.facing.x,-.10,this.facing.z).normalize());
 
       if(this.stun>0)return vision;
 
@@ -219,7 +261,7 @@
   function doDodge(){
     if(STATE.dodging||STATE.graffitiOpen||STATE.caught)return;
     STATE.dodging=true;
-    const dir=playerForward ? playerForward() : new BABYLON.Vector3(0,0,1);
+    const dir=G.getForward?.()||new BABYLON.Vector3(0,0,1);
     try{ player.moveWithCollisions(dir.scale(-1.6)); }catch(e){}
     setTimeout(()=>STATE.dodging=false,420);
   }
@@ -313,56 +355,179 @@
     if(ui.graffiti)ui.graffiti.classList.remove('show');
   }
 
-  let paintCtx=null,painting=false,last=null,paintInitialized=false;
+  let paintCtx=null,guideCtx=null,painting=false,last=null,paintInitialized=false;
+  let pressure=100,ink=100,coverage=0,rep=0,drips=0;
+  let selectedCap='normal';
+  const targetCells=new Set(),coveredCells=new Set();
+  const GRID_X=64,GRID_Y=36;
+
+  function drawGuide(){
+    if(!ui.guide)return;
+    ui.guide.width=1024;ui.guide.height=576;
+    guideCtx=ui.guide.getContext('2d');
+    guideCtx.clearRect(0,0,1024,576);
+    guideCtx.save();
+    guideCtx.textAlign='center';
+    guideCtx.textBaseline='middle';
+    guideCtx.font='900 210px Arial Black, Arial';
+    guideCtx.lineJoin='round';
+    guideCtx.lineWidth=28;
+    guideCtx.strokeStyle='rgba(20,20,24,.72)';
+    guideCtx.strokeText('TDG',512,292);
+    guideCtx.lineWidth=8;
+    guideCtx.strokeStyle='rgba(255,255,255,.75)';
+    guideCtx.strokeText('TDG',512,292);
+    guideCtx.restore();
+
+    // Build a coarse target mask for coverage scoring.
+    targetCells.clear();
+    const img=guideCtx.getImageData(0,0,1024,576).data;
+    for(let gy=0;gy<GRID_Y;gy++){
+      for(let gx=0;gx<GRID_X;gx++){
+        const px=Math.floor((gx+.5)*1024/GRID_X);
+        const py=Math.floor((gy+.5)*576/GRID_Y);
+        const a=img[(py*1024+px)*4+3];
+        if(a>35)targetCells.add(gx+','+gy);
+      }
+    }
+  }
+
+  function updateGraffitiHUD(){
+    coverage=targetCells.size?coveredCells.size/targetCells.size:0;
+    const clean=Math.max(0,1-drips*.035);
+    rep=Math.round(coverage*800+clean*200);
+
+    if(ui.coverage)ui.coverage.style.width=(coverage*100).toFixed(0)+'%';
+    if(ui.coverageText)ui.coverageText.textContent=Math.round(coverage*100)+'%';
+    if(ui.pressure)ui.pressure.style.width=pressure+'%';
+    if(ui.pressureText)ui.pressureText.textContent=Math.round(pressure)+'%';
+    if(ui.ink)ui.ink.style.width=ink+'%';
+    if(ui.inkText)ui.inkText.textContent=Math.round(ink)+'%';
+    if(ui.rep)ui.rep.textContent='REP '+rep;
+
+    if(ui.finish){
+      ui.finish.disabled=coverage<.62;
+      ui.finish.textContent=coverage<.62?'PREENCHA '+Math.round(62-coverage*100)+'%':'FINALIZAR';
+    }
+  }
+
+  function refreshUnlocks(){
+    document.querySelectorAll('[data-cap]').forEach(btn=>{
+      const cap=btn.dataset.cap;
+      const unlocked=cap==='normal'||(cap==='skinny'&&STATE.collected.has('Skinny Cap'))||(cap==='fat'&&STATE.collected.has('Fat Cap'));
+      btn.disabled=!unlocked;
+      btn.classList.toggle('locked',!unlocked);
+    });
+    const uv=document.querySelector('[data-paint="#9b65ff"]');
+    if(uv){
+      const unlocked=STATE.collected.has('UV');
+      uv.disabled=!unlocked;uv.classList.toggle('locked',!unlocked);
+    }
+  }
+
   function initPaintCanvas(){
     if(!ui.paint)return;
-    const rect=ui.paint.getBoundingClientRect();
-    const w=Math.max(640,Math.round(rect.width*devicePixelRatio));
-    const h=Math.max(360,Math.round(rect.height*devicePixelRatio));
-    if(ui.paint.width!==w||ui.paint.height!==h){
-      ui.paint.width=w;ui.paint.height=h;
-      paintInitialized=false;
-    }
+    ui.paint.width=1024;ui.paint.height=576;
     paintCtx=ui.paint.getContext('2d');
     if(!paintInitialized){
-      paintCtx.fillStyle='#b7afa5';paintCtx.fillRect(0,0,w,h);
-      paintCtx.fillStyle='rgba(65,54,49,.18)';
-      for(let i=0;i<70;i++)paintCtx.fillRect((i*97)%w,(i*53)%h,12+(i%5)*9,3+(i%3)*4);
+      paintCtx.fillStyle='#b7afa5';paintCtx.fillRect(0,0,1024,576);
+      paintCtx.fillStyle='rgba(65,54,49,.16)';
+      for(let i=0;i<90;i++)paintCtx.fillRect((i*97)%1024,(i*53)%576,12+(i%5)*9,3+(i%3)*4);
       paintInitialized=true;
+      pressure=100;ink=100;coverage=0;rep=0;drips=0;coveredCells.clear();
     }
     paintCtx.lineCap='round';paintCtx.lineJoin='round';
+    drawGuide();refreshUnlocks();updateGraffitiHUD();
   }
+
   function paintPos(e){
     const r=ui.paint.getBoundingClientRect();
-    return {
-      x:(e.clientX-r.left)*(ui.paint.width/r.width),
-      y:(e.clientY-r.top)*(ui.paint.height/r.height)
-    };
+    return {x:(e.clientX-r.left)*(1024/r.width),y:(e.clientY-r.top)*(576/r.height)};
   }
+
+  function capWidth(){
+    if(selectedCap==='skinny')return 12;
+    if(selectedCap==='fat')return 54;
+    return 30;
+  }
+
+  function markCoverage(a,b,width){
+    const dist=Math.max(1,Math.hypot(b.x-a.x,b.y-a.y));
+    const steps=Math.ceil(dist/8);
+    const radius=Math.max(1,Math.ceil(width/1024*GRID_X*.65));
+    for(let i=0;i<=steps;i++){
+      const t=i/steps;
+      const x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;
+      const gx=Math.floor(x/1024*GRID_X),gy=Math.floor(y/576*GRID_Y);
+      for(let oy=-radius;oy<=radius;oy++)for(let ox=-radius;ox<=radius;ox++){
+        const key=(gx+ox)+','+(gy+oy);
+        if(targetCells.has(key))coveredCells.add(key);
+      }
+    }
+  }
+
   ui.paint?.addEventListener('pointerdown',e=>{
+    if(pressure<=2||ink<=1)return;
     painting=true;last=paintPos(e);ui.paint.setPointerCapture?.(e.pointerId);
   });
+
   ui.paint?.addEventListener('pointermove',e=>{
-    if(!painting||!paintCtx)return;
+    if(!painting||!paintCtx||pressure<=0||ink<=0)return;
     const p=paintPos(e);
     const speed=Math.hypot(p.x-last.x,p.y-last.y);
-    paintCtx.strokeStyle=document.querySelector('[data-paint].active')?.dataset.paint||'#35d7df';
-    paintCtx.lineWidth=Math.max(7,32-Math.min(25,speed*.35));
+    const base=capWidth();
+    const width=Math.max(base*.55,base+10-Math.min(base*.55,speed*.22));
+    const color=document.querySelector('[data-paint].active:not(:disabled)')?.dataset.paint||'#35d7df';
+
+    // Low pressure becomes patchy / weak.
+    paintCtx.globalAlpha=Math.max(.28,pressure/100);
+    paintCtx.strokeStyle=color;
+    paintCtx.lineWidth=width;
     paintCtx.beginPath();paintCtx.moveTo(last.x,last.y);paintCtx.lineTo(p.x,p.y);paintCtx.stroke();
-    if(speed<3&&Math.random()<.12){
-      paintCtx.beginPath();paintCtx.moveTo(p.x,p.y);paintCtx.lineTo(p.x,p.y+18+Math.random()*35);paintCtx.stroke();
+    paintCtx.globalAlpha=1;
+
+    markCoverage(last,p,width);
+
+    const gloveMul=STATE.collected.has('Luvas')?.75:1;
+    ink=Math.max(0,ink-(.035+speed*.0008)*gloveMul);
+    pressure=Math.max(0,pressure-(.055+speed*.00035));
+
+    // Staying too long creates drips and costs clean-style REP.
+    if(speed<2.2&&Math.random()<.22){
+      drips++;
+      paintCtx.globalAlpha=.78;
+      paintCtx.lineWidth=Math.max(4,width*.22);
+      paintCtx.beginPath();paintCtx.moveTo(p.x,p.y);paintCtx.lineTo(p.x,p.y+15+Math.random()*48);paintCtx.stroke();
+      paintCtx.globalAlpha=1;
     }
-    last=p;
+
+    last=p;updateGraffitiHUD();
   });
   window.addEventListener('pointerup',()=>painting=false);
 
   document.querySelectorAll('[data-paint]').forEach(btn=>btn.addEventListener('click',()=>{
+    if(btn.disabled)return;
     document.querySelectorAll('[data-paint]').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
   }));
+  document.querySelectorAll('[data-cap]').forEach(btn=>btn.addEventListener('click',()=>{
+    if(btn.disabled)return;
+    document.querySelectorAll('[data-cap]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedCap=btn.dataset.cap;
+  }));
+  ui.shake?.addEventListener('click',()=>{
+    pressure=Math.min(100,pressure+42);
+    updateGraffitiHUD();
+    toast('TSH TSH TSH • PRESSÃO RECUPERADA',650);
+  });
 
   function saveGraffiti(){
     if(!ui.paint||!paintCtx)return;
+    if(coverage<.62){
+      toast('TERMINE MAIS DA PEÇA',1000);
+      return;
+    }
     const targetCtx=muralTex.getContext();
     targetCtx.clearRect(0,0,1024,512);
     targetCtx.drawImage(ui.paint,0,0,1024,512);
@@ -372,9 +537,11 @@
     STATE.missionComplete=true;
     closeGraffiti();
     graffitiMarker.setEnabled(false);
-    setObjective('Graffiti concluído — Fase 1 finalizada');
+    setObjective('Graffiti concluído — REP '+rep);
     ui.complete?.classList.add('show');
-    toast('MISSÃO CONCLUÍDA',2600);
+    const rank=rep>=850?'S':rep>=700?'A':rep>=550?'B':'C';
+    ui.complete?.querySelector('span')?.replaceChildren(document.createTextNode('REP '+rep+' • RANK '+rank));
+    toast('MISSÃO CONCLUÍDA • REP '+rep,2600);
   }
   ui.finish?.addEventListener('click',saveGraffiti);
   ui.close?.addEventListener('click',closeGraffiti);
@@ -430,6 +597,7 @@
           'Luvas':'-25% GASTO DE TINTA'
         }[p.name]||'COLETADO';
         toast(p.name.toUpperCase()+' • '+effect,1700);
+        refreshUnlocks();
       }
     }
   }
@@ -450,12 +618,14 @@
     let best=null;
     for(const g of guards){
       const v=g.update(dt);
-      if(v.seen&&(!best||v.dist<best.dist))best=v;
+      if((v.seen||v.heard)&&(!best||v.dist<best.dist))best=v;
     }
 
     if(best){
+      const stealth=G.getStealthState?.()||{crouching:false};
       const gain=BABYLON.Scalar.Clamp(1.45-best.dist/18,.35,1.25);
-      STATE.alert=Math.min(1,STATE.alert+gain*dt*.72);
+      const stealthMul=stealth.crouching?.42:1;
+      STATE.alert=Math.min(1,STATE.alert+gain*dt*.72*stealthMul);
     }else{
       STATE.alert=Math.max(0,STATE.alert-dt*(STATE.alertState==='ALERT'?.12:.28));
     }
