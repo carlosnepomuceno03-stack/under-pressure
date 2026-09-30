@@ -262,3 +262,241 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090b10;fon
 .artCard.active{border-color:#f5c21b;background:#1d1a12}
 .paintTools button{border-radius:3px}
 #finishGraffiti{background:#f5c21b!important}
+
+/* V42 — concept/anime-comic interface */
+:root{
+  --ink:#0a0b10;
+  --paper:#f4efe4;
+  --red:#ef3b4f;
+  --cyan:#2cc9f2;
+  --yellow:#ffd13d;
+  --pink:#ff3b9f;
+}
+
+#hud{
+  max-width:560px;
+  background:rgba(7,8,12,.90);
+  border:0;
+  border-radius:0;
+  clip-path:polygon(0 0,98% 2%,100% 92%,3% 100%);
+  box-shadow:10px 10px 0 rgba(0,0,0,.28);
+  padding:13px 16px 15px;
+  transform:rotate(-.35deg);
+}
+#hud:before{
+  content:"";
+  position:absolute;
+  left:10px;right:28px;top:-7px;height:8px;
+  background:var(--red);
+  clip-path:polygon(0 30%,93% 0,100% 55%,7% 100%);
+  opacity:.95;
+}
+.brand{
+  font-family:Impact,Haettenschweiler,'Arial Narrow Bold',sans-serif;
+  font-style:italic;
+  letter-spacing:.04em;
+  font-size:21px;
+  color:#fff;
+  text-shadow:3px 3px 0 #111,5px 5px 0 rgba(255,59,159,.72);
+}
+.brandRow{align-items:flex-start}
+#viewToggle{
+  border:0;
+  border-radius:0;
+  background:var(--cyan);
+  color:#071018;
+  font-family:Impact,Arial Black,sans-serif;
+  transform:rotate(2deg);
+  box-shadow:3px 3px 0 #111;
+}
+.hint{
+  color:#c9cbd3;
+  font-size:9px;
+  letter-spacing:.015em;
+}
+#objective{
+  border-top:2px solid rgba(255,255,255,.12);
+  padding-top:7px;
+  margin-top:7px;
+}
+#objective span{
+  display:inline-block;
+  padding:2px 7px;
+  background:var(--red);
+  color:#fff;
+  font-family:Impact,Arial Black,sans-serif;
+  transform:rotate(-1.5deg);
+  margin-right:8px;
+}
+#objective b{color:#fff}
+#statusRow{margin-top:8px}
+#alertWrap span,#collectibles,#founderCount,#stealthState{
+  font-family:Impact,Arial Black,sans-serif;
+  letter-spacing:.04em;
+  font-size:9px;
+}
+#alertWrap i{
+  background:#171922;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:0;
+}
+#alertBar{background:var(--cyan)}
+#alertWrap[data-state="SUSPICIOUS"] #alertBar{background:var(--yellow)}
+#alertWrap[data-state="ALERT"] #alertBar{background:var(--red)}
+#buildTag{
+  opacity:.45;
+  font-family:'Arial Narrow',Arial,sans-serif;
+  letter-spacing:.08em;
+}
+
+#combatHud{
+  background:rgba(8,9,14,.92);
+  border:0;
+  border-radius:0;
+  clip-path:polygon(4% 0,100% 5%,96% 100%,0 93%);
+  box-shadow:8px 8px 0 rgba(0,0,0,.28);
+  transform:rotate(.4deg);
+}
+#combatHud:before{
+  content:"";
+  position:absolute;left:8px;right:10px;top:-5px;height:6px;
+  background:var(--pink);
+  clip-path:polygon(0 50%,88% 0,100% 50%,9% 100%);
+}
+.combatLine span,#comboText{
+  font-family:Impact,Arial Black,sans-serif;
+  letter-spacing:.06em;
+}
+.combatLine i{border-radius:0;background:#171922}
+#hpBar{background:var(--cyan)}
+.enemy #enemyBar{background:var(--red)}
+#comboText{color:var(--yellow);font-style:italic}
+
+#interactPrompt{
+  font-family:Impact,Arial Black,sans-serif;
+  font-style:italic;
+  letter-spacing:.05em;
+  border:0;
+  border-radius:0;
+  background:#0b0d12;
+  color:#fff;
+  box-shadow:6px 6px 0 rgba(0,0,0,.35);
+  clip-path:polygon(2% 0,100% 7%,97% 100%,0 92%);
+}
+#interactPrompt:before{
+  content:"";
+  position:absolute;left:5px;right:8px;top:-4px;height:5px;background:var(--yellow);
+}
+
+#toast{
+  font-family:Impact,Arial Black,sans-serif;
+  font-style:italic;
+  border-radius:0;
+  background:#11131a;
+  border:0;
+  color:#fff;
+  box-shadow:6px 6px 0 rgba(0,0,0,.35);
+}
+#toast.show{transform:translateX(-50%) rotate(-1deg)}
+
+#missionComplete>div{
+  background:#0a0b10;
+  border:0;
+  border-radius:0;
+  clip-path:polygon(0 4%,97% 0,100% 94%,4% 100%);
+  box-shadow:14px 14px 0 rgba(0,0,0,.36);
+}
+#missionComplete strong{
+  font-family:Impact,Arial Black,sans-serif;
+  font-style:italic;
+  color:#fff;
+  text-shadow:4px 4px 0 var(--red);
+}
+
+/* Piece mode becomes a graffiti-comic screen, not a clean dashboard */
+.paintPanel{
+  background:#090b10;
+  border:0;
+  border-radius:0;
+  clip-path:polygon(.5% 0,99% .8%,100% 99%,0 100%);
+  box-shadow:12px 12px 0 rgba(0,0,0,.34);
+}
+.paintTop strong{
+  font-family:Impact,Arial Black,sans-serif;
+  font-size:20px;
+  font-style:italic;
+  color:#fff;
+  text-shadow:3px 3px 0 #111,5px 5px 0 rgba(44,201,242,.45);
+}
+#repText{
+  font-family:Impact,Arial Black,sans-serif;
+  color:var(--yellow);
+}
+.galleryTitle{
+  display:inline-block;
+  background:var(--red);
+  color:#fff;
+  padding:3px 8px;
+  transform:rotate(-.6deg);
+}
+.artCard{
+  border:2px solid #252933;
+  border-radius:0;
+  background:#11141c;
+  box-shadow:3px 3px 0 rgba(0,0,0,.28);
+}
+.artCard.active{
+  border-color:var(--yellow);
+  background:#1c1820;
+  transform:translateY(-2px) rotate(-.4deg);
+}
+.artCard strong{
+  font-family:Impact,Arial Black,sans-serif;
+  font-style:italic;
+  color:#fff;
+}
+.paintStats label{
+  font-family:Impact,Arial Black,sans-serif;
+  font-size:8px;
+}
+.paintStats i{border-radius:0;background:#171a23}
+.paintStage{
+  border:3px solid #11131a;
+  border-radius:0;
+  box-shadow:8px 8px 0 rgba(0,0,0,.24);
+}
+.paintTools button{
+  font-family:Impact,Arial Black,sans-serif;
+  border-radius:0!important;
+  box-shadow:3px 3px 0 rgba(0,0,0,.30);
+}
+#shakeCan{background:var(--yellow)!important;color:#111!important}
+#cancelGraffiti{background:#292d38!important}
+#finishGraffiti{background:var(--red)!important;color:#fff!important}
+
+/* Mobile keeps same language instead of generic translucent circles */
+@media (pointer:coarse),(max-width:900px){
+  .mBtn{
+    background:rgba(7,9,14,.78);
+    border:2px solid rgba(255,255,255,.16);
+    border-radius:18% 28% 20% 26%;
+    font-family:Impact,Arial Black,sans-serif;
+    font-style:italic;
+    box-shadow:4px 5px 0 rgba(0,0,0,.30);
+  }
+  #mJump{border-color:var(--yellow);color:var(--yellow)}
+  #mDodge{border-color:var(--cyan);color:var(--cyan)}
+  #mAttack{border-color:var(--pink);color:#fff}
+  #mHeavy{border-color:var(--red);color:#fff}
+  #mInteract{border-color:#8ff0cf;color:#d9fff2}
+  .stickBase{
+    border:2px solid rgba(255,255,255,.16);
+    background:rgba(5,7,12,.42);
+    box-shadow:6px 6px 0 rgba(0,0,0,.22),inset 0 0 0 14px rgba(255,255,255,.018);
+  }
+  #moveKnob{
+    background:rgba(44,201,242,.26);
+    border:2px solid var(--cyan);
+    box-shadow:3px 4px 0 rgba(0,0,0,.26);
+  }
+}
