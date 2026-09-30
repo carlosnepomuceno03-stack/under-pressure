@@ -32,7 +32,11 @@
     shake:document.getElementById('shakeCan'),
     gallery:document.getElementById('artGallery'),
     galleryList:document.getElementById('artGalleryList'),
-    founderCount:document.getElementById('founderCount')
+    founderCount:document.getElementById('founderCount'),
+    vigorBar:document.getElementById('vigorBar'),
+    repHud:document.getElementById('repHud'),
+    spraysHud:document.getElementById('spraysHud'),
+    crewHud:document.getElementById('crewHud')
   };
 
   const STATE={
@@ -47,6 +51,8 @@
     graffitiOpen:false,
     missionComplete:false,
     health:100,
+    stamina:100,
+    totalRep:0,
     combo:0,
     comboTimer:0,
     combatTarget:null,
@@ -106,6 +112,10 @@
     if(ui.alertText)ui.alertText.textContent=STATE.alertState==='ALERT'?'PERSEGUIÇÃO':STATE.alertState==='SUSPICIOUS'?'SUSPEITO':'OCULTO';
     if(ui.collect)ui.collect.textContent='ITENS '+STATE.collected.size+'/'+STATE.totalCollectibles;
     if(ui.founderCount)ui.founderCount.textContent='FUNDADORES '+STATE.founders.size+'/4';
+    if(ui.vigorBar)ui.vigorBar.style.width=STATE.stamina.toFixed(0)+'%';
+    if(ui.repHud)ui.repHud.textContent=String(STATE.totalRep);
+    if(ui.spraysHud)ui.spraysHud.textContent=STATE.collected.size+'/'+STATE.totalCollectibles;
+    if(ui.crewHud)ui.crewHud.textContent=STATE.founders.size+'/4';
     const stealth=G.getStealthState?.()||{crouching:false,running:false};
     STATE.crouching=!!stealth.crouching;
     if(ui.stealth)ui.stealth.textContent=stealth.crouching?'AGACHADO • SILENCIOSO':(stealth.running?'CORRENDO • BARULHENTO':'EM PÉ');
@@ -251,7 +261,16 @@
     if(STATE.dodging||STATE.caught||STATE.missionComplete)return;
     setHp(STATE.health-amount);
     toast('-'+amount+' HP',650);
+    window.UP_AUDIO?.sfx?.('hurt');
     if(STATE.health<=0)catchPlayer();
+  }
+  function spendStamina(amount){
+    if(STATE.stamina<amount){
+      toast('SEM VIGOR',650);
+      return false;
+    }
+    STATE.stamina=Math.max(0,STATE.stamina-amount);
+    return true;
   }
   function nearestGuard(maxDist=2.4){
     let best=null,bestD=maxDist;
@@ -287,8 +306,10 @@
   }
   function doAttack(type){
     if(STATE.attacking||STATE.dodging||STATE.graffitiOpen||STATE.caught)return;
+    if(!spendStamina(type==='heavy'?18:8))return;
     STATE.attacking=true;
     G.playAttack?.(type);
+    window.UP_AUDIO?.sfx?.(type==='heavy'?'heavy':'punch');
 
     const range=type==='heavy'?3.0:2.65;
     const g=nearestGuard(range);
@@ -316,10 +337,16 @@
   }
   function doDodge(){
     if(STATE.dodging||STATE.graffitiOpen||STATE.caught)return;
-    const dir=G.getMoveIntent?.()||G.getForward?.()||new BABYLON.Vector3(0,0,1);
-    if(!G.startRoll?.(dir))return;
+    if(!spendStamina(22))return;
+
+    // Snapshot the actual movement vector at button press.
+    // On mobile this is the left analog direction; keyboard/gamepad use the same world-space intent.
+    const dir=G.getMoveDirection?.()||G.getMoveIntent?.()||G.getForward?.()||new BABYLON.Vector3(0,0,1);
+    if(!G.startRoll?.(dir)){ STATE.stamina=Math.min(100,STATE.stamina+22); return; }
+
     STATE.dodging=true;
-    setTimeout(()=>STATE.dodging=false,610);
+    window.UP_AUDIO?.sfx?.('roll');
+    setTimeout(()=>STATE.dodging=false,640);
   }
 
   function stealthTakedown(){
@@ -356,6 +383,7 @@
     player.position.set(-5,5.55,28);
     G.resetMotion();
     setHp(100);
+    STATE.stamina=100;
     guards[0].root.position.copyFrom(guards[0].points[0]);
     guards[1].root.position.copyFrom(guards[1].points[0]);
     guards[2].root.position.copyFrom(guards[2].points[0]);
@@ -646,6 +674,7 @@
     try{localStorage.setItem('UP3D_PHASE1_ART',ui.paint.toDataURL('image/webp',.78));}catch(e){}
     STATE.mission='complete';
     STATE.missionComplete=true;
+    STATE.totalRep+=rep;
     closeGraffiti();
     graffitiMarker.setEnabled(false);
     setObjective('Graffiti concluído — REP '+rep);
@@ -653,6 +682,7 @@
     const rank=rep>=850?'S':rep>=700?'A':rep>=550?'B':'C';
     ui.complete?.querySelector('span')?.replaceChildren(document.createTextNode('REP '+rep+' • RANK '+rank));
     toast('MISSÃO CONCLUÍDA • REP '+rep,2600);
+    window.UP_AUDIO?.sfx?.('mission');
   }
   ui.finish?.addEventListener('click',saveGraffiti);
   ui.close?.addEventListener('click',closeGraffiti);
@@ -679,6 +709,25 @@
         else openGraffiti();
       }
     }
+  };
+
+  function dismissMissionComplete(){
+    ui.complete?.classList.remove('show');
+    G.setGameplayLocked(false);
+  }
+  function replayMission(){
+    try{localStorage.removeItem('UP3D_PHASE1_ART');}catch(_){}
+    location.reload();
+  }
+  document.getElementById('missionClose')?.addEventListener('click',dismissMissionComplete);
+  document.getElementById('missionContinue')?.addEventListener('click',dismissMissionComplete);
+  document.getElementById('missionReplay')?.addEventListener('click',replayMission);
+
+  window.UP3D_GAME={
+    state:STATE,
+    restart:replayMission,
+    dismissMissionComplete,
+    setPaused(v){G.setGameplayLocked(!!v);}
   };
 
   // Standard controller: B / east face button = directional roll.
@@ -796,6 +845,16 @@
     updateFounders(dt);
     updateMission();
     updateAlert(dt);
+
+    const stealthNow=G.getStealthState?.()||{running:false};
+    if(!STATE.attacking&&!STATE.dodging){
+      if(stealthNow.running&&!STATE.graffitiOpen&&!STATE.missionComplete){
+        STATE.stamina=Math.max(0,STATE.stamina-dt*12);
+      }else{
+        STATE.stamina=Math.min(100,STATE.stamina+dt*20);
+      }
+    }
+
     graffitiMarker.rotation.z+=dt*.7;
     STATE.comboTimer=Math.max(0,STATE.comboTimer-dt);
     if(STATE.comboTimer<=0&&STATE.combo>0){
