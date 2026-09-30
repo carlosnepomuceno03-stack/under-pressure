@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='VISUAL+MOBILE FIX V37';
+const BUILD='ART PASS V38';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -10,6 +10,11 @@ scene.fogDensity=.0048;
 scene.fogColor=new BABYLON.Color3(.09,.10,.16);
 scene.imageProcessingConfiguration.exposure=1.14;
 scene.imageProcessingConfiguration.contrast=1.26;
+scene.imageProcessingConfiguration.vignetteEnabled=true;
+scene.imageProcessingConfiguration.vignetteWeight=1.25;
+scene.imageProcessingConfiguration.vignetteStretch=.18;
+scene.imageProcessingConfiguration.vignetteColor=new BABYLON.Color4(.02,.025,.045,1);
+scene.imageProcessingConfiguration.vignetteBlendMode=BABYLON.ImageProcessingConfiguration.VIGNETTEMODE_MULTIPLY;
 
 const light=new BABYLON.HemisphericLight('hemi',new BABYLON.Vector3(0,1,0),scene);
 light.intensity=.68;
@@ -89,6 +94,42 @@ function decalPlane(name,w,h,x,y,z,material,rotY=0){
   p.position.set(x,y,z);p.rotation.y=rotY;p.material=material;
   p.checkCollisions=false;p.isPickable=false;return p;
 }
+
+function photoDecal(name,url,w,h,x,y,z,rotY=0){
+  const material=new BABYLON.StandardMaterial(name+'Mat',scene);
+  const tex=new BABYLON.Texture(url,scene,true,false,BABYLON.Texture.TRILINEAR_SAMPLINGMODE);
+  tex.hasAlpha=false;
+  material.diffuseTexture=tex;
+  material.emissiveColor=new BABYLON.Color3(.055,.055,.055);
+  material.specularColor=new BABYLON.Color3(.02,.02,.02);
+  material.backFaceCulling=false;
+  const p=BABYLON.MeshBuilder.CreatePlane(name,{width:w,height:h},scene);
+  p.position.set(x,y,z);p.rotation.y=rotY;p.material=material;
+  p.checkCollisions=false;p.isPickable=false;
+  return p;
+}
+
+function signTexture(name,text,bg='#1a2530',fg='#f2d15d'){
+  const tex=new BABYLON.DynamicTexture(name,{width:512,height:160},scene,false);
+  const c=tex.getContext();
+  c.fillStyle=bg;c.fillRect(0,0,512,160);
+  c.fillStyle='rgba(255,255,255,.05)';
+  for(let i=0;i<20;i++)c.fillRect((i*71)%512,(i*31)%160,20+(i%4)*20,3);
+  c.fillStyle=fg;
+  c.font='900 58px Arial Black, Arial';
+  c.textAlign='center';c.textBaseline='middle';
+  c.fillText(text,256,80);
+  tex.update();return tex;
+}
+
+function addShopSign(name,text,x,y,z,w=3.4,rotY=Math.PI/2,bg='#16232d',fg='#f6cf4d'){
+  const matSign=new BABYLON.StandardMaterial(name+'Mat',scene);
+  matSign.diffuseTexture=signTexture(name+'Tex',text,bg,fg);
+  matSign.emissiveColor=BABYLON.Color3.FromHexString(fg).scale(.08);
+  matSign.backFaceCulling=false;
+  return decalPlane(name,w,1.05,x,y,z,matSign,rotY);
+}
+
 
 
 function box(name,w,h,d,x,y,z,material,climbable=true){
@@ -435,6 +476,94 @@ for(const [x,y,z,w,d] of [[8,4.96,18,9.2,8.1],[18,6.96,8,10.2,9.1],[30,8.66,-3,1
   }
 }
 
+// ART PASS V38 — recognizable neighborhood identity
+// Real crew pieces become part of the world instead of floating UI references.
+photoDecal('graffitiNepoWorld','./3d-prototype/assets/graffiti/nepo_throw.webp',4.6,2.6,-25.76,1.75,-24,-Math.PI/2);
+photoDecal('graffitiGateWorld','./3d-prototype/assets/graffiti/portao26.webp',5.1,3.05,-25.74,2.05,1,-Math.PI/2);
+photoDecal('graffitiAlienWorld','./3d-prototype/assets/graffiti/alien_jam.webp',5.4,3.05,3.44,1.95,18,Math.PI/2);
+photoDecal('graffitiCrewWorld','./3d-prototype/assets/graffiti/crew_wall.webp',6.0,3.35,13.0,2.25,17.34,0);
+photoDecal('blackbookPoster','./3d-prototype/assets/graffiti/blackbook.webp',1.35,.78,24.1,4.25,4.47,0);
+
+// Neighborhood commerce and hand-painted signs.
+addShopSign('mercadinhoSign','MERCADINHO',3.42,3.82,18,3.3,Math.PI/2,'#17313a','#f3cf52');
+addShopSign('oficinaSign','OFICINA',-25.72,3.72,23,2.75,-Math.PI/2,'#412d28','#f0b862');
+addShopSign('barSign','BAR',-25.72,3.42,-10,1.8,-Math.PI/2,'#253b35','#dfc35a');
+
+// Window/gate frames make facades read as buildings, not boxes.
+function facadeFrame(name,x,y,z,w,h,rotY=0){
+  const frameMat=mat(name+'Frame','#2d3136');
+  const t=.10;
+  const top=decalPlane(name+'Top',w,t,x,y+h/2,z,frameMat,rotY);
+  const bottom=decalPlane(name+'Bottom',w,t,x,y-h/2,z,frameMat,rotY);
+  const left=decalPlane(name+'Left',t,h,x,y,z,frameMat,rotY);
+  const right=decalPlane(name+'Right',t,h,x,y,z,frameMat,rotY);
+  if(Math.abs(rotY)>1){
+    left.position.z-=w/2; right.position.z+=w/2;
+  }else{
+    left.position.x-=w/2; right.position.x+=w/2;
+  }
+  return [top,bottom,left,right];
+}
+facadeFrame('frameShop',3.43,2.45,18,3.0,2.2,Math.PI/2);
+facadeFrame('frameHouseA',-25.73,2.2,13,2.25,1.65,-Math.PI/2);
+
+// Air-conditioners, satellite dishes and rooftop clutter.
+function addAC(name,x,y,z,rotY=0){
+  const body=box(name,1.15,.65,.38,x,y,z,wallLight,false);body.checkCollisions=false;body.rotation.y=rotY;
+  const fan=BABYLON.MeshBuilder.CreateTorus(name+'Fan',{diameter:.43,thickness:.055,tessellation:18},scene);
+  fan.position.set(x,y,z+(Math.abs(rotY)<1?.205:0));
+  if(Math.abs(rotY)>1){fan.position.x=x+(rotY>0?-.205:.205);fan.rotation.y=Math.PI/2;}
+  fan.material=metalMat;fan.checkCollisions=false;
+}
+addAC('ac1',-25.63,3.0,-17,-Math.PI/2);
+addAC('ac2',-25.63,3.15,9,-Math.PI/2);
+addAC('ac3',3.28,3.0,15,Math.PI/2);
+
+function addDish(name,x,y,z,scale=1){
+  const dish=BABYLON.MeshBuilder.CreateDisc(name,{radius:.72*scale,tessellation:18},scene);
+  dish.position.set(x,y,z);dish.rotation.x=Math.PI/2.7;dish.rotation.z=.35;
+  dish.material=metalMat;dish.checkCollisions=false;
+  const stem=cyl(name+'Stem',.08*scale,.7*scale,x,y-.35*scale,z,metalMat);stem.checkCollisions=false;
+}
+addDish('dish1',18,7.9,9.7,.7);
+addDish('dish2',30,9.7,-5,.8);
+
+// Water tank silhouette becomes more recognizable with rings + cap.
+for(const [x,y,z] of [[30,9.45,-2],[18,7.72,8]]){
+  for(const oy of [-.45,0,.45]){
+    const ring=BABYLON.MeshBuilder.CreateTorus('tankRing'+x+y+oy,{diameter:1.68,thickness:.045,tessellation:18},scene);
+    ring.position.set(x,y+oy,z);ring.rotation.x=Math.PI/2;ring.material=metalMat;ring.checkCollisions=false;
+  }
+}
+
+// Simple curb vegetation and weeds.
+for(const [x,z,s] of [
+  [-23.8,-30,.65],[-23.8,-18,.55],[-6.8,-8,.48],[-6.6,7,.52],
+  [2.2,-22,.70],[21,-21,.62],[33,-14,.55],[6,28,.58]
+]){
+  for(let k=0;k<4;k++){
+    const blade=BABYLON.MeshBuilder.CreatePlane('weed'+x+z+k,{width:.10*s,height:.72*s},scene);
+    blade.position.set(x+(k-1.5)*.09,.35*s,z+(k%2)*.07);
+    blade.rotation.y=k*.9;blade.rotation.z=(k-1.5)*.10;
+    blade.material=k%2?plantMat:plantLight;blade.checkCollisions=false;blade.isPickable=false;
+  }
+}
+
+// Extra dangling utility wires near the street for a denser silhouette.
+for(let k=0;k<5;k++){
+  wire('utilityWireDense'+k,[
+    new BABYLON.Vector3(-8+k*.08,7.1-k*.08,-31),
+    new BABYLON.Vector3(-8+k*.08,6.1-k*.10,-4),
+    new BABYLON.Vector3(-8+k*.08,6.65-k*.08,28)
+  ]);
+}
+
+// Painted curb segments / worn neighborhood color.
+for(const z of [-26,-18,6,18,27]){
+  const c=box('paintedCurb'+z,2.7,.12,.35,-5.72,.31,z,z%2?fadedBlue:fadedRed,false);
+  c.checkCollisions=false;
+}
+
 // TDG roster retained as world/lore data.
 // Visual tags are intentionally disabled until they can be attached to real wall surfaces.
 const crewNames=['NEPO','TRANE','NOROK','ICON','GOM','MM','OFF','PRIKS','ANJO','SINUK','ASKA','TALYN','PATEK','ERRARO','RODEF','BOLA'];
@@ -458,6 +587,11 @@ rigRoot.position.set(0,-.05,0);
 const rigMat=mat('rig','#d7d4c7');
 const rigDark=mat('rigDark','#22262c');
 const rigAccent=mat('rigAccent','#14d7e8');
+const skinMat=mat('skin','#9b6b54');
+const hoodieMat=mat('hoodie','#20242b');
+const hoodieAccent=mat('hoodieAccent','#267f8c');
+const shoeMat=mat('shoe','#e5e0d4');
+const soleMat=mat('sole','#16181c');
 
 function limbBox(name,w,h,d,parent,x,y,z,material=rigMat){
   const m=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
@@ -476,35 +610,45 @@ function joint(name,parent,x,y,z){
 
 // pelvis + torso
 const pelvis=limbBox('pelvis',.72,.34,.42,rigRoot,0,.08,0,rigDark);
-const torso=limbBox('torso',.86,.92,.46,rigRoot,0,.72,0,rigDark);
-const chest=limbBox('chest',.98,.28,.5,rigRoot,0,1.12,0,rigAccent);
+const torso=limbBox('torso',.86,.92,.46,rigRoot,0,.72,0,hoodieMat);
+const chest=limbBox('chest',.98,.28,.5,rigRoot,0,1.12,0,hoodieAccent);
 
 // neck + head
-const neck=limbBox('neck',.24,.18,.24,rigRoot,0,1.36,0,rigMat);
+const neck=limbBox('neck',.24,.18,.24,rigRoot,0,1.36,0,skinMat);
 const head=BABYLON.MeshBuilder.CreateSphere('head',{diameter:.62,segments:10},scene);
 head.parent=rigRoot;
 head.position.set(0,1.68,0);
-head.material=rigMat;
+head.material=skinMat;
 head.checkCollisions=false;
 
 // backpack
 const pack=limbBox('pack',.68,.72,.3,rigRoot,0,.82,-.34,rigAccent);
 
+// clothing silhouette: hood, cap, straps and shoe soles
+const hood=BABYLON.MeshBuilder.CreateTorus('hood',{diameter:.72,thickness:.13,tessellation:18},scene);
+hood.parent=rigRoot;hood.position.set(0,1.40,-.03);hood.rotation.x=Math.PI/2;hood.material=hoodieMat;hood.checkCollisions=false;
+const cap=BABYLON.MeshBuilder.CreateSphere('cap',{diameter:.64,segments:10,slice:.45},scene);
+cap.parent=rigRoot;cap.position.set(0,1.86,0);cap.scaling.y=.38;cap.material=hoodieAccent;cap.checkCollisions=false;
+const brim=limbBox('capBrim',.42,.055,.24,rigRoot,0,1.82,.34,hoodieAccent);
+const strapL=limbBox('strapL',.08,.72,.05,rigRoot,-.25,.88,.25,rigAccent);
+const strapR=limbBox('strapR',.08,.72,.05,rigRoot,.25,.88,.25,rigAccent);
+
+
 // simple face markers so we can always tell which way the character is looking
 const faceMat=mat('face','#101215');
-const nose=limbBox('nose',.13,.14,.15,rigRoot,0,1.67,.34,rigMat);
+const nose=limbBox('nose',.13,.14,.15,rigRoot,0,1.67,.34,skinMat);
 const eyeL=limbBox('eyeL',.07,.06,.035,rigRoot,-.12,1.75,.31,faceMat);
 const eyeR=limbBox('eyeR',.07,.06,.035,rigRoot,.12,1.75,.31,faceMat);
 
 // arm hierarchy: shoulder pivot -> upper arm -> elbow pivot -> forearm
 const lShoulder=joint('lShoulder',rigRoot,-.56,1.16,0);
 const rShoulder=joint('rShoulder',rigRoot,.56,1.16,0);
-const lUpperArm=limbBox('lUpperArm',.22,.62,.22,lShoulder,0,-.31,0,rigMat);
-const rUpperArm=limbBox('rUpperArm',.22,.62,.22,rShoulder,0,-.31,0,rigMat);
+const lUpperArm=limbBox('lUpperArm',.24,.62,.24,lShoulder,0,-.31,0,hoodieMat);
+const rUpperArm=limbBox('rUpperArm',.24,.62,.24,rShoulder,0,-.31,0,hoodieMat);
 const lElbow=joint('lElbow',lShoulder,0,-.62,0);
 const rElbow=joint('rElbow',rShoulder,0,-.62,0);
-const lForearm=limbBox('lForearm',.2,.58,.2,lElbow,0,-.29,0,rigMat);
-const rForearm=limbBox('rForearm',.2,.58,.2,rElbow,0,-.29,0,rigMat);
+const lForearm=limbBox('lForearm',.21,.58,.21,lElbow,0,-.29,0,skinMat);
+const rForearm=limbBox('rForearm',.21,.58,.21,rElbow,0,-.29,0,skinMat);
 
 // leg hierarchy: hips slightly narrower, knees bend backward naturally, feet forward
 const lHip=joint('lHip',rigRoot,-.19,.04,0);
@@ -513,12 +657,14 @@ const lThigh=limbBox('lThigh',.24,.68,.25,lHip,0,-.34,0,rigDark);
 const rThigh=limbBox('rThigh',.24,.68,.25,rHip,0,-.34,0,rigDark);
 const lKnee=joint('lKnee',lHip,0,-.68,0);
 const rKnee=joint('rKnee',rHip,0,-.68,0);
-const lShin=limbBox('lShin',.22,.66,.22,lKnee,0,-.33,0,rigMat);
-const rShin=limbBox('rShin',.22,.66,.22,rKnee,0,-.33,0,rigMat);
+const lShin=limbBox('lShin',.23,.66,.23,lKnee,0,-.33,0,rigDark);
+const rShin=limbBox('rShin',.23,.66,.23,rKnee,0,-.33,0,rigDark);
 const lAnkle=joint('lAnkle',lKnee,0,-.66,0);
 const rAnkle=joint('rAnkle',rKnee,0,-.66,0);
-const lFoot=limbBox('lFoot',.24,.14,.42,lAnkle,0,-.05,.15,rigDark);
-const rFoot=limbBox('rFoot',.24,.14,.42,rAnkle,0,-.05,.15,rigDark);
+const lFoot=limbBox('lFoot',.29,.16,.46,lAnkle,0,-.05,.15,shoeMat);
+const rFoot=limbBox('rFoot',.29,.16,.46,rAnkle,0,-.05,.15,shoeMat);
+const lSole=limbBox('lSole',.30,.045,.48,lAnkle,0,-.14,.15,soleMat);
+const rSole=limbBox('rSole',.30,.045,.48,rAnkle,0,-.14,.15,soleMat);
 
 let animClock=0;
 let lastPlayerPos=player.position.clone();
