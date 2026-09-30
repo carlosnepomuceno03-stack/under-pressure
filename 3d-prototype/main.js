@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='CAMERA V13';
+const BUILD='PARKOUR V14';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -209,6 +209,28 @@ function hasHeadClearance(dir){
   return !(hit&&hit.hit);
 }
 
+// Never "teleport onto nothing". Before a mantle we search for an actual
+// walkable surface just beyond the ledge and only place the player there.
+function findMantleLanding(dir,top){
+  const probes=[.28,.5,.75,1.0];
+  for(const d of probes){
+    const xz=player.position.add(dir.scale(d));
+    const origin=new BABYLON.Vector3(xz.x,top+1.8,xz.z);
+    const ray=new BABYLON.Ray(origin,BABYLON.Vector3.Down(),3.0);
+    const hit=scene.pickWithRay(ray,m=>
+      m!==player&&m!==head&&m!==pack&&m.checkCollisions
+    );
+    if(hit?.hit&&hit.pickedPoint){
+      const y=hit.pickedPoint.y;
+      // Accept only surfaces near the ledge height, not the street far below.
+      if(y>=top-.35&&y<=top+.65){
+        return hit.pickedPoint.clone();
+      }
+    }
+  }
+  return null;
+}
+
 scene.onBeforeRenderObservable.add(()=>{
   const dt=Math.min(.033,engine.getDeltaTime()/1000);
   parkourCooldown=Math.max(0,parkourCooldown-dt);
@@ -249,30 +271,41 @@ scene.onBeforeRenderObservable.add(()=>{
     const obstacle=top-feet;
     const dir=wallHit.dir.normalize();
 
-    // Low obstacle: auto-vault/mantle in one smooth move.
+    // Low obstacle: mantle only if there is a real top/landing surface.
     if(obstacle>0&&obstacle<1.35){
-      player.position.y=Math.max(player.position.y,top+1.03);
-      player.position.addInPlace(dir.scale(.95));
-      vy=1.0;
-      climbing=false;
-      parkourCooldown=.28;
-      keys.Space=false;
-      spaceWasDown=false;
+      const landing=findMantleLanding(dir,top);
+      if(landing){
+        player.position.set(landing.x,landing.y+1.08,landing.z);
+        vy=.15;
+        climbing=false;
+        parkourCooldown=.28;
+        keys.Space=false;
+        spaceWasDown=false;
+      }else{
+        // No support above: do not drop/teleport into empty space.
+        vy=0;
+      }
     }else{
       // Taller surface: continuously climb while Space is held.
       vy=0;
       player.moveWithCollisions(new BABYLON.Vector3(0,3.6*dt,0));
       player.moveWithCollisions(dir.scale(.5*dt));
 
-      // Mantle as soon as the player's upper body clears the ledge.
+      // Mantle only after confirming there is a surface to stand on.
       if(player.position.y+1.0>=top&&hasHeadClearance(dir)){
-        player.position.y=top+1.08;
-        player.position.addInPlace(dir.scale(.82));
-        climbing=false;
-        parkourCooldown=.35;
-        keys.Space=false;
-        spaceWasDown=false;
-        vy=.3;
+        const landing=findMantleLanding(dir,top);
+        if(landing){
+          player.position.set(landing.x,landing.y+1.08,landing.z);
+          climbing=false;
+          parkourCooldown=.35;
+          keys.Space=false;
+          spaceWasDown=false;
+          vy=.12;
+        }else{
+          // Hold at the lip instead of popping over and falling on empty space.
+          player.position.y=Math.min(player.position.y,top-.92);
+          vy=0;
+        }
       }
     }
   }else{
