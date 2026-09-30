@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='HERO BLOCK+COMIC UI V42';
+const BUILD='FULL CONCEPT MAP V43';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -924,6 +924,164 @@ for(const mesh of scene.meshes){
      mesh.name.startsWith('tank')||mesh.name.startsWith('ladder')||
      mesh.name.startsWith('crate')||mesh.name.startsWith('dumpster')){
     outlineMesh(mesh,.014);
+  }
+}
+
+// FULL MAP ART PASS V43 — propagate the concept language across the whole playable block.
+const fullFacadeMats=[
+  heroFacadeA,heroFacadeB,heroFacadeC,
+  heroMat('fullFacadeD','#5a4a45'),
+  heroMat('fullFacadeE','#393b45'),
+  heroMat('fullFacadeF','#4a3a46')
+];
+const fullRoofA=heroMat('fullRoofA','#34282b');
+const fullRoofB=heroMat('fullRoofB','#4a302e');
+const fullMetal=heroMat('fullMetal','#242a31');
+const fullConcrete=heroMat('fullConcrete','#716b68');
+
+// Left street row: every house now has its own concept palette and outline.
+for(let i=0;i<6;i++){
+  const house=scene.getMeshByName('houseL'+i);
+  const roof=scene.getMeshByName('roofL'+i);
+  if(house){house.material=fullFacadeMats[i%fullFacadeMats.length];outlineMesh(house,.017);}
+  if(roof){roof.material=i%2?fullRoofA:fullRoofB;outlineMesh(roof,.016);}
+}
+
+// Right parkour chain: consistent stylized treatment.
+for(const [name,material] of [
+  ['house3',fullFacadeMats[4]],['roof3',fullRoofA],
+  ['ledge',fullConcrete],['bridgeRoof',fullRoofB],
+  ['highLedge',fullConcrete],['landing',fullRoofA],
+  ['lowWall',fullConcrete],['vaultBox',fullConcrete]
+]){
+  const mesh=scene.getMeshByName(name);
+  if(mesh){mesh.material=material;outlineMesh(mesh,.016);}
+}
+
+// Facade rhythm: warm/cool windows, doors, awnings and graffiti.
+for(let i=0;i<6;i++){
+  const z=-28+i*11;
+  const warm=i%2===0;
+  const glow=warm?warmGlow:cyanGlow;
+  addWindow('fullWinA'+i,-25.86,2.10,z-1.55,1.20,.85,glow);
+  addWindow('fullWinB'+i,-25.86,3.30,z+1.20,1.00,.72,warm?cyanGlow:warmGlow);
+  addDoor('fullDoor'+i,-25.88,1.10,z+2.55,1.00,2.10,i%3===0?bluePaint:metalMat);
+  addEave('fullEave'+i,-25.50,3.70,z+2.35,1.0,2.2,i%2?fullMetal:fullRoofB);
+
+  const tagNames=['TRANE','NOROK','ICON','GOM','MM','OFF'];
+  const tagColors=['#f5c21b','#e52c98','#00b8d9','#ff7040','#9b65ff','#8ff0cf'];
+  makeTagDecal('fullTag'+i,tagNames[i],tagColors[i],-25.70,2.55,z-.15,1.75,-Math.PI/2);
+}
+
+// Parkour-side facade details.
+for(const d of [
+  ['pWin1',3.40,2.10,16.2,1.9,1.0,true],
+  ['pWin2',13.10,2.60,12.2,1.4,.85,false],
+  ['pWin3',24.30,3.55,5.0,1.55,.9,true],
+  ['pWin4',29.95,5.10,-7.48,1.6,.9,false]
+]){
+  addWindow(d[0],d[1],d[2],d[3],d[4],d[5],d[6]?warmGlow:cyanGlow);
+}
+makeTagDecal('rightTag1','PRIKS','#e52c98',3.38,2.60,15.0,1.8,Math.PI/2);
+makeTagDecal('rightTag2','ANJO','#f5c21b',13.0,3.20,17.25,1.75,0);
+makeTagDecal('rightTag3','SINUK','#00b8d9',24.0,5.75,4.45,1.9,0);
+
+// Route-3 rooftop clutter / visual beats.
+for(const [name,x,y,z] of [
+  ['ventR1',8,5.10,16.0],['ventR2',18,7.05,5.6],['ventR3',30,8.78,-6.2]
+]){
+  const body=box(name,.78,.78,.78,x,y,z,fullMetal,false);body.checkCollisions=false;outlineMesh(body,.014);
+  const cap=box(name+'Cap',.96,.12,.96,x,y+.45,z,fullMetal,false);cap.checkCollisions=false;outlineMesh(cap,.014);
+}
+for(const [name,x,y,z] of [
+  ['dishR1',8.8,5.48,19.8],['dishR2',19.0,7.48,10.7],['dishR3',28.6,9.08,-1.5]
+]){
+  addDish(name,x,y,z,.62);
+}
+
+// Campão: richer broken terrain silhouette, vegetation and graffiti debris.
+for(const [x,z,s] of [
+  [3,-1,.55],[5,-7,.60],[8,-12,.52],[13,-7,.68],[16,-15,.56],
+  [20,-6,.50],[22,-18,.62],[11,-23,.48],[6,-20,.58]
+]){
+  for(let k=0;k<4;k++){
+    const weed=BABYLON.MeshBuilder.CreatePlane('fullWeed'+x+z+k,{width:.13*s,height:.95*s},scene);
+    weed.position.set(x+(k-1.5)*.12,.42*s,z+(k%2)*.10);
+    weed.rotation.y=k*.82;weed.rotation.z=(k-1.5)*.08;
+    weed.material=k%2?plantMat:plantLight;weed.checkCollisions=false;weed.isPickable=false;
+    outlineMesh(weed,.01);
+  }
+}
+
+for(const [x,z,w] of [[2,-4,2.8],[7,-2,3.4],[15,-7,2.6],[20,-15,3.2],[9,-22,2.5]]){
+  const broken=box('fullBroken'+x+z,w,.48,.42,x,.24,z,fullConcrete,false);
+  broken.rotation.y=(x+z)*.03;broken.checkCollisions=false;outlineMesh(broken,.012);
+}
+makeTagDecal('lotTag1','ASKA','#9b65ff',1.65,1.05,6.0,1.7,Math.PI/2);
+makeTagDecal('lotTag2','TALYN','#00b8d9',23.75,1.15,-18.0,1.9,-Math.PI/2);
+
+// Road: stronger wet-storytelling / reflections / curb wear.
+for(const [x,z,w,d,matr,rot] of [
+  [-15,-30,4.6,.70,puddleWarm,.02],[-16,-12,5.0,.85,puddleCyan,-.05],
+  [-14,5,4.0,.72,puddlePink,.08],[-15,13,5.4,.82,puddleWarm,-.03],
+  [-16,30,4.6,.75,puddleCyan,.04]
+]){
+  addPuddle('fullWet'+z,x,z,w,d,matr,rot);
+}
+
+// Street poles and wires get heavier illustrated separation.
+for(const mesh of scene.meshes){
+  if(mesh.name.startsWith('pole')||mesh.name.startsWith('lampArm')||
+     mesh.name.startsWith('wire')||mesh.name.startsWith('crosswalk')){
+    outlineMesh(mesh,.012);
+  }
+}
+
+// More overhead utility wires crossing the road/campão, matching the concept density.
+for(const z of [-21,-7,7,21]){
+  wire('crossWireA'+z,[
+    new BABYLON.Vector3(-25.5,7.6,z),
+    new BABYLON.Vector3(-10,6.8,z+.4),
+    new BABYLON.Vector3(5,7.15,z-.3)
+  ]);
+  wire('crossWireB'+z,[
+    new BABYLON.Vector3(-25.5,7.3,z+.25),
+    new BABYLON.Vector3(-10,6.55,z+.6),
+    new BABYLON.Vector3(5,6.95,z)
+  ]);
+}
+
+// Warm light pools along the left street.
+for(const z of [-28,-14,0,14,28]){
+  addPuddle('lampPool'+z,-11.0,z,4.4,1.05,puddleWarm,0);
+}
+
+// Final mural zone gets denser architecture and stronger framing.
+for(const [x,h] of [[3,5.2],[21,6.4]]){
+  const flank=box('muralFlank'+x,5.0,h,5.5,x,h/2,-31.5,fullFacadeMats[x===3?2:1],false);
+  flank.checkCollisions=false;outlineMesh(flank,.018);
+  addPitchedRoof('muralFlankRoof'+x,x,h+.05,-31.5,5.2,5.6,fullRoofB,.22);
+}
+makeTagDecal('muralSideTagA','ERRARO','#f5c21b',3.0,2.4,-28.72,1.7,Math.PI);
+makeTagDecal('muralSideTagB','RODEF','#e52c98',21.0,3.2,-28.72,1.8,Math.PI);
+
+// Crew signatures in quieter corners.
+for(const [name,x,y,z,color,rot] of [
+  ['BOLA',-25.68,2.2,-20,'#ff7040',-Math.PI/2],
+  ['PATEK',24.0,1.3,15,'#8ff0cf',-Math.PI/2],
+  ['OFF',13.0,4.0,17.25,'#00b8d9',0]
+]){
+  makeTagDecal('crewCorner'+name,name,color,x,y,z,1.55,rot);
+}
+
+// Global prop outline pass — intentionally excludes invisible/collision-only objects.
+for(const mesh of scene.meshes){
+  if(mesh.isVisible===false)continue;
+  if(mesh.name.startsWith('houseL')||mesh.name.startsWith('roofL')||
+     mesh.name.startsWith('tree')||mesh.name.startsWith('dish')||
+     mesh.name.startsWith('shutter')||mesh.name.startsWith('yard')||
+     mesh.name.startsWith('fence')||mesh.name.startsWith('balcony')){
+    outlineMesh(mesh,.012);
   }
 }
 
