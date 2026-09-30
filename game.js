@@ -45,6 +45,7 @@ let P=Object.assign({
   neonUnlocked:false,
   campaignComplete:false,
   replayCount:0,
+  mobileViewPhase:null,
   phase1Art:null,
   phase2Art:null,
   phase3Art:null,
@@ -373,7 +374,7 @@ class Custom extends Phaser.Scene{
         P.neonUnlocked=true;P.replayCount=(P.replayCount||0)+1;
         P.phase1Complete=false;P.phase2Complete=false;P.phase3Complete=false;
         P.missionComplete=false;P.phase=1;
-        P.phase1Art=null;P.phase2Art=null;P.phase3Art=null;
+        P.phase1Art=null;P.phase2Art=null;P.phase3Art=null;P.mobileViewPhase=null;
       }
       SAVE.set(P);
 
@@ -845,7 +846,7 @@ class MapScene extends Phaser.Scene{
     yes.on('pointerdown',()=>{
       P.phase1Complete=false;P.phase2Complete=false;P.phase3Complete=false;
       P.missionComplete=false;P.phase=1;
-      P.phase1Art=null;P.phase2Art=null;P.phase3Art=null;
+      P.phase1Art=null;P.phase2Art=null;P.phase3Art=null;P.mobileViewPhase=null;
       P.lastScore=0;P.lastStars=0;
       SAVE.set(P);
       this.scene.restart();
@@ -926,7 +927,9 @@ class MobileMap extends Phaser.Scene{
     AUDIO.setScene('map');
     addOrientationHint(this);
 
-    this.phase=P.phase3Complete?3:(P.phase2Complete?3:(P.phase1Complete?2:1));
+    const progressionPhase=P.phase3Complete?3:(P.phase2Complete?3:(P.phase1Complete?2:1));
+    this.phase=P.mobileViewPhase||progressionPhase;
+    this.phaseDone=this.phase===1?P.phase1Complete:(this.phase===2?P.phase2Complete:P.phase3Complete);
     this.worldW=GW;this.worldH=GH;
 
     // Only the current phase background exists.
@@ -940,6 +943,23 @@ class MobileMap extends Phaser.Scene{
       3:{x:1180,y:360,w:500,h:250,flip:false,tint:0xd7cadf}
     }[this.phase];
     this.wall=this.add.image(wallCfg.x,wallCfg.y,'clean_wall').setDisplaySize(wallCfg.w,wallCfg.h).setDepth(2).setFlipX(wallCfg.flip).setTint(wallCfg.tint);
+
+    // Keep the exact graffiti the player painted on the wall after winning.
+    if(this.phaseDone){
+      const art=this.phase===1?P.phase1Art:(this.phase===2?P.phase2Art:P.phase3Art);
+      if(art){
+        const key='mobile_finished_art_'+this.phase;
+        if(this.textures.exists(key))this.textures.remove(key);
+        this.textures.addBase64(key,art);
+        this.textures.once(Phaser.Textures.Events.ADD_KEY+key,()=>{
+          if(!this.scene.isActive())return;
+          this.finishedArt=this.add.image(wallCfg.x,wallCfg.y,key)
+            .setDisplaySize(wallCfg.w*.95,wallCfg.h*.92)
+            .setDepth(3)
+            .setFlipX(wallCfg.flip);
+        });
+      }
+    }
 
     const starts={1:{x:790,y:735},2:{x:185,y:735},3:{x:260,y:760}};
     const goals={1:{x:1230,y:618},2:{x:1120,y:585},3:{x:1180,y:610}};
@@ -978,7 +998,16 @@ class MobileMap extends Phaser.Scene{
     menu.on('pointerdown',()=>this.scene.start('Menu'));
     replay.on('pointerdown',()=>this.scene.start('Paint',{phase:this.phase,replay:true}));
 
+    if(this.phaseDone&&this.phase<3){
+      const next=btn(this,GW-455,GH-44,200,52,'PRÓXIMA FASE',YELLOW,'#111',14);
+      this.ui.add([next.bg,next.tx]);
+      next.on('pointerdown',()=>{
+        P.mobileViewPhase=null;SAVE.set(P);this.scene.restart();
+      });
+    }
+
     this.createMobileGuards();
+    this.createMobileCollectibles();
 
     this.last='front';this.frame=0;this.speed=250;this.lastStep=0;
     this.cursors=this.input.keyboard.createCursorKeys();
@@ -1006,6 +1035,65 @@ class MobileMap extends Phaser.Scene{
     if(this.phase===3){add(470,455,'x',210,78,1);add(860,680,'y',190,76,-1);add(1260,500,'x',175,84,-1);add(760,300,'y',145,80,1)}
   }
 
+  createMobileCollectibles(){
+    this.collectibles=[];
+    const add=(type,x,y,label,color,shape='can')=>{
+      const c=this.add.container(x,y).setDepth(60);
+      const glow=this.add.circle(0,0,34,color,.18).setStrokeStyle(4,color,.9);
+      let icon;
+      if(shape==='bucket'){
+        icon=this.add.rectangle(0,3,31,38,color,1).setStrokeStyle(2,0xffffff,.8);
+        c.add(this.add.rectangle(0,-19,20,8,0xffffff,.85));
+      }else if(shape==='cap'){
+        icon=this.add.ellipse(0,0,34,19,color,1).setStrokeStyle(2,0xffffff,.8);
+        c.add(this.add.rectangle(0,-12,12,10,0xffffff,.7));
+      }else if(shape==='glove'){
+        icon=this.add.rectangle(0,0,26,38,color,1).setStrokeStyle(2,0xffffff,.8).setAngle(-12);
+      }else{
+        icon=this.add.rectangle(0,0,19,50,color,1).setStrokeStyle(2,0xffffff,.85);
+        c.add(this.add.rectangle(0,-28,10,7,0xffffff,1));
+      }
+      const t=txt(this,0,50,label,10,'#fff',true).setOrigin(.5).setBackgroundColor('#090c12').setPadding(5,3);
+      c.add([glow,icon,t]);
+      this.tweens.add({targets:c,y:'-=7',duration:780,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+      this.collectibles.push({type,obj:c,x,y});
+    };
+
+    // Rewards live on the wall/map of the phase you just completed.
+    if(this.phaseDone&&this.phase===1){
+      if(!P.bucketUnlocked)add('bucket',740,650,'BALDE',0xffd447,'bucket');
+      if(!P.skinnyCapUnlocked)add('skinny',930,735,'CAP FINO',0x19d7e7,'cap');
+    }
+    if(this.phaseDone&&this.phase===2){
+      if(!P.fatCapUnlocked)add('fat',700,700,'CAP FAT',0xff5b35,'cap');
+      if(!P.legendarySprays.includes('#8c63ff'))add('uv',930,620,'UV',0x8c63ff,'can');
+    }
+    if(this.phaseDone&&this.phase===3){
+      if(!P.glovesUnlocked)add('gloves',760,735,'LUVAS',0xe7e7e7,'glove');
+      if(!P.legendarySprays.includes('#39ff88'))add('acid',1010,650,'ACID',0x39ff88,'can');
+    }
+  }
+
+  checkMobileCollectibles(){
+    if(!this.collectibles?.length)return;
+    for(const c of this.collectibles){
+      if(!c.obj.active)continue;
+      if(Phaser.Math.Distance.Between(this.player.x,this.player.y,c.x,c.y)<72){
+        if(c.type==='bucket')P.bucketUnlocked=true;
+        if(c.type==='skinny')P.skinnyCapUnlocked=true;
+        if(c.type==='fat')P.fatCapUnlocked=true;
+        if(c.type==='gloves')P.glovesUnlocked=true;
+        if(c.type==='uv'&&!P.legendarySprays.includes('#8c63ff'))P.legendarySprays.push('#8c63ff');
+        if(c.type==='acid'&&!P.legendarySprays.includes('#39ff88'))P.legendarySprays.push('#39ff88');
+        SAVE.set(P);AUDIO.select();
+        const msg=c.type==='bucket'?'BALDE LIBERADO':c.type==='skinny'?'CAP FINO LIBERADO':c.type==='fat'?'CAP FAT LIBERADO':c.type==='gloves'?'LUVAS PRO LIBERADAS':c.type==='uv'?'ULTRAVIOLETA LIBERADA':'ACID LIBERADA';
+        const pop=txt(this,GW/2,155,msg,20,'#ffd447',true).setOrigin(.5).setBackgroundColor('#090c12').setPadding(12,8).setDepth(2000).setScrollFactor(0);
+        this.time.delayedCall(1500,()=>pop.destroy());
+        c.obj.destroy();
+      }
+    }
+  }
+
   makeMobileControls(){
     this.joy={x:0,y:0};
     const base=this.add.circle(140,GH-135,72,0x0a0f18,.62).setStrokeStyle(3,0xffffff,.22).setDepth(1200).setScrollFactor(0);
@@ -1029,6 +1117,7 @@ class MobileMap extends Phaser.Scene{
   }
 
   tryPaint(){
+    if(this.phaseDone)return;
     if(Phaser.Math.Distance.Between(this.player.x,this.player.y,this.point.x,this.point.y)<145){
       AUDIO.select();this.scene.start('Paint',{phase:this.phase});
     }
@@ -1099,8 +1188,9 @@ class MobileMap extends Phaser.Scene{
       if(P.rareMaskEquipped)this.maskOverlay.setTint(0xc56cff);
     }else this.maskOverlay.setVisible(false);
 
-    this.prompt.setVisible(Phaser.Math.Distance.Between(this.player.x,this.player.y,this.point.x,this.point.y)<150);
+    this.prompt.setVisible(!this.phaseDone&&Phaser.Math.Distance.Between(this.player.x,this.player.y,this.point.x,this.point.y)<150);
     this.updateGuards(delta);
+    this.checkMobileCollectibles();
   }
 }
 
@@ -1463,6 +1553,7 @@ class Paint extends Phaser.Scene{
       P.rareMaskUnlocked=true;P.campaignComplete=true;P.missionComplete=true;
       if(!this.replay)P.phase=3;
     }
+    if(IS_TOUCH)P.mobileViewPhase=this.phase;
     P.lastScore=score;P.lastStars=stars;P.finalColors=(this.colorsUsed.length?this.colorsUsed:[P.spray,'#19d7e7','#ffd447']).slice(0,3);while(P.finalColors.length<3)P.finalColors.push(['#ff2d78','#19d7e7','#ffd447'][P.finalColors.length]);SAVE.set(P);
     this.add.rectangle(GW/2,GH/2,GW,GH,0x000000,.72).setDepth(1000);panel(this,GW/2,GH/2,760,500,.98,0xffd447).setDepth(1001);
     txt(this,GW/2,285,`FASE ${this.phase} CONCLUÍDA!`,48,'#ffd447',true).setOrigin(.5).setDepth(1002);txt(this,GW/2,350,'★'.repeat(stars)+'☆'.repeat(3-stars),50,'#ffd447',true).setOrigin(.5).setDepth(1002);txt(this,GW/2,410,`ESTILO: ${score} PONTOS`,27,'#fff',true).setOrigin(.5).setDepth(1002);
