@@ -994,12 +994,14 @@ class MobileMap extends Phaser.Scene{
 
     const menu=btn(this,GW-90,GH-44,145,52,'MENU',MID,'#fff',17);
     const replay=btn(this,GW-260,GH-44,170,52,'REJOGAR',0x26324a,'#fff',14);
-    this.ui.add([menu.bg,menu.tx,replay.bg,replay.tx]);
+    const reset=btn(this,GW-455,GH-44,185,52,'RESETAR RUN',0x4b2230,'#fff',13);
+    this.ui.add([menu.bg,menu.tx,replay.bg,replay.tx,reset.bg,reset.tx]);
     menu.on('pointerdown',()=>this.scene.start('Menu'));
     replay.on('pointerdown',()=>this.scene.start('Paint',{phase:this.phase,replay:true}));
+    reset.on('pointerdown',()=>this.confirmMobileReset());
 
     if(this.phaseDone&&this.phase<3){
-      const next=btn(this,GW-455,GH-44,200,52,'PRÓXIMA FASE',YELLOW,'#111',14);
+      const next=btn(this,GW-670,GH-44,200,52,'PRÓXIMA FASE',YELLOW,'#111',14);
       this.ui.add([next.bg,next.tx]);
       next.on('pointerdown',()=>{
         P.mobileViewPhase=null;SAVE.set(P);this.scene.restart();
@@ -1016,6 +1018,26 @@ class MobileMap extends Phaser.Scene{
 
     this.cameras.main.setBounds(0,0,GW,GH).startFollow(this.player,true,.1,.1).setZoom(1.02);
     this.makeMobileControls();
+  }
+
+  confirmMobileReset(){
+    if(this.resetOverlay?.active)return;
+    this.resetOverlay=this.add.container(GW/2,GH/2).setDepth(5000).setScrollFactor(0);
+    const shade=this.add.rectangle(0,0,GW,GH,0x000000,.76).setInteractive();
+    const box=this.add.rectangle(0,0,610,280,0x090c12,.98).setStrokeStyle(3,0xffd447,.65);
+    const title=txt(this,0,-92,'RESETAR A RUN?',28,'#ffd447',true).setOrigin(.5);
+    const sub=txt(this,0,-38,'Volta para a Fase 1 e apaga os graffitis desta campanha.\nItens, latas, máscara rara e cores desbloqueadas continuam.',15,'#e1e5ee').setOrigin(.5).setAlign('center');
+    const yes=btn(this,-130,78,210,58,'RESETAR',0xff315a,'#fff',16);
+    const no=btn(this,130,78,210,58,'CANCELAR',MID,'#fff',16);
+    yes.on('pointerdown',()=>{
+      P.phase1Complete=false;P.phase2Complete=false;P.phase3Complete=false;
+      P.phase1Art=null;P.phase2Art=null;P.phase3Art=null;
+      P.phase=1;P.missionComplete=false;P.lastScore=0;P.lastStars=0;P.mobileViewPhase=null;
+      SAVE.set(P);this.scene.restart();
+    });
+    no.on('pointerdown',()=>{this.resetOverlay.destroy();this.resetOverlay=null});
+    this.resetOverlay.add([shade,box,title,sub,yes.bg,yes.tx,no.bg,no.tx]);
+    this.ui.add(this.resetOverlay);
   }
 
   createMobileGuards(){
