@@ -96,23 +96,34 @@ camera.lowerRadiusLimit=5.5;camera.upperRadiusLimit=10;
 camera.lowerBetaLimit=.7;camera.upperBetaLimit=1.35;
 camera.lockedTarget=player;
 
-// PC camera: rotate from pointer movement anywhere over the page.
-let lastMouseX=null,lastMouseY=null;
-document.addEventListener('pointermove',e=>{
-  if(e.pointerType&&e.pointerType!=='mouse')return;
-  if(lastMouseX===null){lastMouseX=e.clientX;lastMouseY=e.clientY;return;}
-  const dx=e.clientX-lastMouseX;
-  const dy=e.clientY-lastMouseY;
-  lastMouseX=e.clientX;lastMouseY=e.clientY;
+// PC camera: pointer-lock mouse look.
+// Browsers require one user gesture to capture the cursor. After that, NO holding/click-drag is needed.
+let targetAlpha=camera.alpha;
+let targetBeta=camera.beta;
+const LOOK_X=.0028;
+const LOOK_Y=.0022;
 
-  // Ignore huge jumps when pointer re-enters the browser window.
-  if(Math.abs(dx)>120||Math.abs(dy)>120)return;
+function setCameraHint(locked){
+  const el=document.getElementById('cameraHint');
+  if(el)el.classList.toggle('hidden',locked);
+}
 
-  camera.alpha-=dx*.006;
-  camera.beta=BABYLON.Scalar.Clamp(camera.beta+dy*.0045,.72,1.30);
+canvas.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='mouse'&&document.pointerLockElement!==canvas){
+    canvas.requestPointerLock?.();
+  }
 });
-window.addEventListener('blur',()=>{lastMouseX=null;lastMouseY=null});
-document.addEventListener('mouseleave',()=>{lastMouseX=null;lastMouseY=null});
+document.addEventListener('pointerlockchange',()=>{
+  const locked=document.pointerLockElement===canvas;
+  targetAlpha=camera.alpha;
+  targetBeta=camera.beta;
+  setCameraHint(locked);
+});
+document.addEventListener('mousemove',e=>{
+  if(document.pointerLockElement!==canvas)return;
+  targetAlpha-=e.movementX*LOOK_X;
+  targetBeta=BABYLON.Scalar.Clamp(targetBeta+e.movementY*LOOK_Y,.72,1.30);
+});
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
   camera.radius=BABYLON.Scalar.Clamp(camera.radius+Math.sign(e.deltaY)*.55,5.5,10);
@@ -179,6 +190,10 @@ function hasHeadClearance(dir){
 scene.onBeforeRenderObservable.add(()=>{
   const dt=Math.min(.033,engine.getDeltaTime()/1000);
   parkourCooldown=Math.max(0,parkourCooldown-dt);
+
+  // Smooth, stable third-person camera.
+  camera.alpha=BABYLON.Scalar.Lerp(camera.alpha,targetAlpha,1-Math.pow(.0008,dt));
+  camera.beta=BABYLON.Scalar.Lerp(camera.beta,targetBeta,1-Math.pow(.0008,dt));
 
   const f=forwardFlat(),r=rightFlat();
   let move=BABYLON.Vector3.Zero();
