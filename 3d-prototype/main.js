@@ -1,0 +1,181 @@
+const canvas=document.getElementById('renderCanvas');
+const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
+const scene=new BABYLON.Scene(engine);
+scene.clearColor=new BABYLON.Color4(0.035,0.045,0.075,1);
+
+const light=new BABYLON.HemisphericLight('hemi',new BABYLON.Vector3(0,1,0),scene);
+light.intensity=.72;
+const sun=new BABYLON.DirectionalLight('sun',new BABYLON.Vector3(-.45,-1,.35),scene);
+sun.position=new BABYLON.Vector3(25,35,-20);
+sun.intensity=.65;
+
+const mat=(name,hex)=>{
+  const m=new BABYLON.StandardMaterial(name,scene);
+  m.diffuseColor=BABYLON.Color3.FromHexString(hex);
+  m.specularColor=new BABYLON.Color3(.05,.05,.05);
+  return m;
+};
+const asphalt=mat('asphalt','#34373f');
+const dirt=mat('dirt','#8b4c32');
+const concrete=mat('concrete','#77736f');
+const wallMat=mat('wall','#9a8f82');
+const roofMat=mat('roof','#6f3d32');
+const accent=mat('accent','#14d7e8');
+const playerMat=mat('player','#d7d4c7');
+
+function box(name,w,h,d,x,y,z,material){
+  const b=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
+  b.position.set(x,y,z); b.material=material; b.checkCollisions=true; return b;
+}
+function cyl(name,diam,h,x,y,z,material){
+  const c=BABYLON.MeshBuilder.CreateCylinder(name,{diameter:diam,height:h},scene);
+  c.position.set(x,y,z); c.material=material; c.checkCollisions=true; return c;
+}
+
+// ground / road / lot
+box('ground',90,.4,70,0,-.2,0,dirt);
+box('road',18,.24,70,-15,.02,0,asphalt);
+box('sidewalkL',3,.35,70,-24,.08,0,concrete);
+box('sidewalkR',2.6,.35,70,-5.7,.08,0,concrete);
+
+// buildings left street
+for(let i=0;i<6;i++){
+  const z=-28+i*11;
+  const h=5+(i%2)*2.2;
+  box('houseL'+i,10,h,8,-31,h/2,z,wallMat);
+  box('roofL'+i,10.5,.45,8.5,-31,h+.22,z,roofMat);
+}
+// parkour buildings right
+box('shop1',9,4.5,8,8,2.25,18,wallMat);
+box('awning1',4,.35,3,3.7,3.1,18,concrete);
+box('roof1',9.5,.4,8.5,8,4.72,18,roofMat);
+
+box('house2',10,6.5,9,18,3.25,8,wallMat);
+box('roof2',10.5,.4,9.5,18,6.72,8,roofMat);
+
+box('house3',11,8.2,9,30,4.1,-3,wallMat);
+box('roof3',11.5,.4,9.5,30,8.42,-3,roofMat);
+
+// parkour route pieces
+box('lowWall',8,1.4,.7,1,.7,25,concrete);
+box('vaultBox',1.4,1.0,1.4,4,.5,22,concrete);
+box('ledge',5,.35,1.3,12,3.4,17,concrete);
+box('bridgeRoof',5,.35,3,13,5.3,12,roofMat);
+box('highLedge',4,.35,1.1,24,6.3,5,concrete);
+box('landing',4,.4,4,26,8.5,1,roofMat);
+
+// campao obstacles
+for(const p of [[8,.6,-6],[13,.8,-10],[18,.55,-14],[4,.5,-18]]){
+  box('camp'+Math.random(),2.5,p[1]*2,1.6,p[0],p[1],p[2],concrete);
+}
+// mural final
+const mural=box('mural',18,8,.8,26,4,-27,wallMat);
+mural.material=mat('muralMat','#b8b0a5');
+
+// poles
+for(const z of [-28,-14,0,14,28]){
+  cyl('pole'+z,.45,8,-8,4,z,concrete);
+}
+
+// player capsule
+const player=BABYLON.MeshBuilder.CreateCapsule('player',{height:2.1,radius:.42},scene);
+player.position=new BABYLON.Vector3(-16,1.2,27);
+player.material=playerMat;
+player.checkCollisions=true;
+player.ellipsoid=new BABYLON.Vector3(.42,1.0,.42);
+
+const head=BABYLON.MeshBuilder.CreateSphere('head',{diameter:.7},scene);
+head.parent=player;head.position.y=.75;head.material=playerMat;
+const pack=box('pack',.7,.85,.32,0,0,0,accent);pack.parent=player;pack.position.set(0,.15,.46);pack.checkCollisions=false;
+
+// camera
+const camera=new BABYLON.ArcRotateCamera('cam',Math.PI/2,1.12,8,new BABYLON.Vector3(0,1.3,0),scene);
+camera.attachControl(canvas,true);
+camera.lowerRadiusLimit=5.5;camera.upperRadiusLimit=10;
+camera.lowerBetaLimit=.7;camera.upperBetaLimit=1.35;
+camera.wheelDeltaPercentage=.01;
+camera.lockedTarget=player;
+
+// input
+const keys={};
+window.addEventListener('keydown',e=>keys[e.code]=true);
+window.addEventListener('keyup',e=>keys[e.code]=false);
+
+let vy=0;
+let grounded=false;
+let parkourCooldown=0;
+
+function forwardFlat(){
+  const f=camera.getForwardRay().direction.clone();f.y=0;return f.normalize();
+}
+function rightFlat(){
+  const f=forwardFlat();return new BABYLON.Vector3(f.z,0,-f.x);
+}
+function rayAhead(distance=1.25,height=.7){
+  const origin=player.position.add(new BABYLON.Vector3(0,height,0));
+  const ray=new BABYLON.Ray(origin,forwardFlat(),distance);
+  return scene.pickWithRay(ray,m=>m!==player&&m!==head&&m!==pack&&m.checkCollisions);
+}
+function rayDown(distance=1.3){
+  const ray=new BABYLON.Ray(player.position.add(new BABYLON.Vector3(0,.2,0)),BABYLON.Vector3.Down(),distance);
+  return scene.pickWithRay(ray,m=>m!==player&&m.checkCollisions);
+}
+
+scene.onBeforeRenderObservable.add(()=>{
+  const dt=Math.min(.033,engine.getDeltaTime()/1000);
+  parkourCooldown=Math.max(0,parkourCooldown-dt);
+
+  const f=forwardFlat(),r=rightFlat();
+  let move=BABYLON.Vector3.Zero();
+  if(keys.KeyW||keys.ArrowUp)move.addInPlace(f);
+  if(keys.KeyS||keys.ArrowDown)move.subtractInPlace(f);
+  if(keys.KeyD||keys.ArrowRight)move.addInPlace(r);
+  if(keys.KeyA||keys.ArrowLeft)move.subtractInPlace(r);
+
+  const speed=(keys.ShiftLeft||keys.ShiftRight)?7.2:4.6;
+  if(move.lengthSquared()>.001){
+    move.normalize();
+    const yaw=Math.atan2(move.x,move.z);
+    player.rotation.y=BABYLON.Scalar.Lerp(player.rotation.y,yaw,.18);
+    player.moveWithCollisions(move.scale(speed*dt));
+  }
+
+  const down=rayDown(1.35);
+  grounded=!!(down&&down.hit);
+  if(grounded&&vy<0)vy=-.5;
+
+  if((keys.Space)&&grounded){
+    vy=7.4;
+    keys.Space=false;
+  }
+
+  // E = simple contextual vault / climb prototype
+  if(keys.KeyE&&parkourCooldown<=0){
+    const hit=rayAhead(1.45,.55);
+    if(hit&&hit.hit){
+      const top=hit.pickedMesh.getBoundingInfo().boundingBox.maximumWorld.y;
+      const feet=player.position.y-1.05;
+      const obstacle=top-feet;
+      if(obstacle>0&&obstacle<1.45){
+        player.position.y+=obstacle+.22;
+        player.position.addInPlace(forwardFlat().scale(1.15));
+        vy=2.2;
+        parkourCooldown=.45;
+      }else if(obstacle>=1.45&&obstacle<2.8){
+        player.position.y+=Math.min(obstacle+.25,2.5);
+        player.position.addInPlace(forwardFlat().scale(.55));
+        vy=.8;
+        parkourCooldown=.7;
+      }
+    }
+    keys.KeyE=false;
+  }
+
+  vy-=18*dt;
+  player.moveWithCollisions(new BABYLON.Vector3(0,vy*dt,0));
+  if(player.position.y<-5)player.position.set(-16,1.2,27);
+});
+
+scene.collisionsEnabled=true;
+engine.runRenderLoop(()=>scene.render());
+window.addEventListener('resize',()=>engine.resize());
