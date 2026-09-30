@@ -4,18 +4,43 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Under Pressure 3D Prototype</title>
-  <link rel="stylesheet" href="./3d-prototype/style.css?v=25" />
+  <link rel="stylesheet" href="./3d-prototype/style.css?v=28" />
 </head>
 <body>
   <div id="hud">
     <div class="brand">UNDER PRESSURE 3D</div>
     <div class="hint">WASD = andar • Shift = correr • Espaço = pular/escalar • clique = capturar mouse • Esc = soltar</div>
-  <div id="objective"><span>OBJETIVO</span> Alcance o mural pelos telhados, rua ou campão</div>
+  <div id="objective"><span>OBJETIVO</span> <b id="objectiveText">Alcance o mural pelos telhados, rua ou campão</b></div>
+  <div id="statusRow">
+    <div id="alertWrap" data-state="SAFE"><span id="alertText">OCULTO</span><i><b id="alertBar"></b></i></div>
+    <div id="collectibles">SPRAYS 0/4</div>
+  </div>
   <div id="buildTag">...</div>
   <div id="mouseHint">CLIQUE NO JOGO PARA CAPTURAR O MOUSE</div>
   </div>
+  <div id="interactPrompt"></div>
+  <div id="toast"></div>
+  <div id="missionComplete"><div><strong>MISSÃO CONCLUÍDA</strong><span>Fase 1 • Under Pressure</span></div></div>
+
+  <div id="graffitiMode">
+    <div class="paintPanel">
+      <div class="paintTop"><strong>GRAFFITI</strong><span>Pinte o mural</span></div>
+      <canvas id="graffitiCanvas"></canvas>
+      <div class="paintTools">
+        <button data-paint="#35d7df" class="paint cyan active" aria-label="ciano"></button>
+        <button data-paint="#ff4c8b" class="paint pink" aria-label="rosa"></button>
+        <button data-paint="#ffd34e" class="paint yellow" aria-label="amarelo"></button>
+        <button data-paint="#111217" class="paint black" aria-label="preto"></button>
+        <button data-paint="#f5f2ea" class="paint white" aria-label="branco"></button>
+        <button id="cancelGraffiti">SAIR</button>
+        <button id="finishGraffiti">FINALIZAR</button>
+      </div>
+    </div>
+  </div>
+
   <canvas id="renderCanvas"></canvas>
   <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="./3d-prototype/main.js?v=27"></script>
+  <script src="./3d-prototype/main.js?v=28"></script>
+  <script src="./3d-prototype/game-systems.js?v=28"></script>
 </body>
 </html>
