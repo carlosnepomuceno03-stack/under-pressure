@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='BLUEPRINT MAP V41';
+const BUILD='HERO BLOCK+COMIC UI V42';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -8,8 +8,8 @@ scene.clearColor=new BABYLON.Color4(.025,.035,.075,1);
 scene.fogMode=BABYLON.Scene.FOGMODE_EXP2;
 scene.fogDensity=.0048;
 scene.fogColor=new BABYLON.Color3(.045,.06,.12);
-scene.imageProcessingConfiguration.exposure=1.14;
-scene.imageProcessingConfiguration.contrast=1.26;
+scene.imageProcessingConfiguration.exposure=1.08;
+scene.imageProcessingConfiguration.contrast=1.34;
 scene.imageProcessingConfiguration.vignetteEnabled=true;
 scene.imageProcessingConfiguration.vignetteWeight=1.25;
 scene.imageProcessingConfiguration.vignetteStretch=.18;
@@ -846,6 +846,87 @@ const crewNames=['NEPO','TRANE','NOROK','ICON','GOM','MM','OFF','PRIKS','ANJO','
 // The previous tube approximation was only a placeholder and hurt the visual read.
 // A proper landmark asset will replace it during the art pass.
 
+// HERO BLOCK V42 — approved concept visual slice.
+function outlineMesh(mesh,width=.022,color='#0b0c11'){
+  if(!mesh)return mesh;
+  mesh.renderOutline=true;
+  mesh.outlineWidth=width;
+  mesh.outlineColor=BABYLON.Color3.FromHexString(color);
+  return mesh;
+}
+function heroMat(name,hex,emissive=.03){
+  const mm=mat(name,hex);
+  mm.specularColor=new BABYLON.Color3(.02,.02,.025);
+  mm.specularPower=18;
+  mm.emissiveColor=BABYLON.Color3.FromHexString(hex).scale(emissive);
+  return mm;
+}
+const heroFacadeA=heroMat('heroFacadeA','#45414a');
+const heroFacadeB=heroMat('heroFacadeB','#503b3c');
+const heroFacadeC=heroMat('heroFacadeC','#33424a');
+const heroRoofMat=heroMat('heroRoofMat','#372529');
+const heroConcreteMat=heroMat('heroConcreteMat','#6c6766');
+
+for(const [name,material] of [
+  ['startRoofBase',heroFacadeA],['startRoof',heroRoofMat],
+  ['route3StepA',heroFacadeC],['route3StepB',heroFacadeB],
+  ['shop1',heroFacadeB],['roof1',heroRoofMat],
+  ['house2',heroFacadeC],['roof2',heroRoofMat]
+]){
+  const mesh=scene.getMeshByName(name);
+  if(mesh){mesh.material=material;outlineMesh(mesh,.018);}
+}
+
+// start-roof concrete edge like the approved overview
+for(const [name,w,d,x,z] of [
+  ['heroEdgeN',10.2,.26,-5,24.0],['heroEdgeS',10.2,.26,-5,32.0]
+]){
+  const p=box(name,w,.56,d,x,4.74,z,heroConcreteMat,false);
+  p.checkCollisions=false;outlineMesh(p,.018);
+}
+for(const [name,x,z] of [['heroEdgeW',-10.0,28],['heroEdgeE',0.0,28]]){
+  const p=box(name,.26,.56,7.7,x,4.74,z,heroConcreteMat,false);
+  p.checkCollisions=false;outlineMesh(p,.018);
+}
+
+// dense near-camera rooftop tank silhouette
+const heroTank=BABYLON.MeshBuilder.CreateCylinder('heroTank',{diameter:2.05,height:1.65,tessellation:18},scene);
+heroTank.position.set(-7.4,5.38,27.2);
+heroTank.material=heroMat('heroTankMat','#171d24');
+heroTank.checkCollisions=false;outlineMesh(heroTank,.025);
+for(const yy of [4.92,5.38,5.84]){
+  const ring=BABYLON.MeshBuilder.CreateTorus('heroTankRing'+yy,{diameter:2.08,thickness:.055,tessellation:18},scene);
+  ring.position.set(-7.4,yy,27.2);ring.rotation.x=Math.PI/2;ring.material=metalMat;ring.checkCollisions=false;
+}
+
+// colored illustrated graffiti close to the player
+makeTagDecal('heroTagA','TDG','#f5c21b',-9.82,3.05,29.3,1.9,Math.PI/2);
+makeTagDecal('heroTagB','NEPO','#e52c98',-.16,2.72,27.0,2.1,-Math.PI/2);
+makeTagDecal('heroTagC','RUA','#00b8d9',3.38,2.85,20.4,1.8,Math.PI/2);
+
+// vegetation masses / silhouette near campão entrance
+for(const [x,z,s] of [[-2.8,19.0,.72],[-1.8,17.2,.58],[1.4,15.7,.62],[4.6,14.5,.55]]){
+  for(let k=0;k<5;k++){
+    const leaf=BABYLON.MeshBuilder.CreateSphere('heroBush'+x+z+k,{diameter:(1.0+(k%3)*.26)*s,segments:6},scene);
+    leaf.position.set(x+(k-2)*.27*s,.42+(k%2)*.16,z+((k%2)?-.24:.24)*s);
+    leaf.scaling.y=.65;leaf.material=k%2?plantMat:plantLight;leaf.checkCollisions=false;outlineMesh(leaf,.014);
+  }
+}
+
+// hero light pools / wet asphalt near start
+addPuddle('heroWet1',-15.0,24.0,5.8,1.0,puddleWarm,.02);
+addPuddle('heroWet2',-14.8,19.8,3.8,.72,puddlePink,-.08);
+addPuddle('heroWet3',-13.1,15.6,3.2,.65,puddleCyan,.10);
+
+// outline nearby props so they read like the concept
+for(const mesh of scene.meshes){
+  if(mesh.name.startsWith('carStreet')||mesh.name.startsWith('pole')||
+     mesh.name.startsWith('tank')||mesh.name.startsWith('ladder')||
+     mesh.name.startsWith('crate')||mesh.name.startsWith('dumpster')){
+    outlineMesh(mesh,.014);
+  }
+}
+
 // player collider + simple humanoid visual rig
 // The capsule remains only for collision; the visible character is built from separate limbs.
 const player=BABYLON.MeshBuilder.CreateCapsule('playerCollider',{height:2.1,radius:.42},scene);
@@ -978,6 +1059,17 @@ iconPlane('packCrown','♛','#e82b9a',.34,.22,0,.88,-.535,rigRoot);
 const sprayCan=BABYLON.MeshBuilder.CreateCylinder('sprayCan',{diameter:.14,height:.42,tessellation:12},scene);
 sprayCan.parent=rElbow;sprayCan.position.set(.03,-.63,.05);sprayCan.rotation.z=.15;sprayCan.material=sprayCyan;sprayCan.checkCollisions=false;
 
+
+for(const mesh of scene.meshes){
+  const p=mesh.parent;
+  if(p===rigRoot||p===lShoulder||p===rShoulder||p===lElbow||p===rElbow||
+     p===lHip||p===rHip||p===lKnee||p===rKnee||p===lAnkle||p===rAnkle){
+    outlineMesh(mesh,.028,'#090a0f');
+  }
+}
+outlineMesh(head,.030,'#090a0f');
+outlineMesh(cap,.030,'#090a0f');
+outlineMesh(pack,.030,'#090a0f');
 
 let animClock=0;
 let lastPlayerPos=player.position.clone();
