@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='COMBAT V29';
+const BUILD='STEALTH+GRAFFITI V30';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -864,8 +864,9 @@ scene.onBeforeRenderObservable.add(()=>{
   if(keys.KeyD||keys.ArrowRight)wish.addInPlace(r);
   if(keys.KeyA||keys.ArrowLeft)wish.subtractInPlace(r);
 
-  const running=!!(keys.ShiftLeft||keys.ShiftRight);
-  const maxSpeed=running?7.2:4.7;
+  const crouching=!!(keys.ControlLeft||keys.ControlRight||keys.KeyC);
+  const running=!crouching&&!!(keys.ShiftLeft||keys.ShiftRight);
+  const maxSpeed=crouching?2.15:(running?7.2:4.7);
   const accel=grounded?18:7;
   const friction=grounded?15:2.2;
 
@@ -963,6 +964,16 @@ scene.onBeforeRenderObservable.add(()=>{
 
   animateRig(dt,moveAmount,running&&moveAmount>.1,isJumping,isClimbing);
 
+  // Stealth crouch pose: lower silhouette, bent knees, quieter movement.
+  if(crouching&&parkourState==='normal'&&grounded){
+    rigRoot.position.y-=.30;
+    torso.rotation.x+=.10;
+    lHip.rotation.x+=.28;
+    rHip.rotation.x+=.28;
+    lKnee.rotation.x+=.72;
+    rKnee.rotation.x+=.72;
+  }
+
   // Extra readability for landing and mantle.
   if(landTimer>0){
     const duration=airTime>.62?.28:.17;
@@ -1008,6 +1019,20 @@ window.UP3D={
   makeMat:mat,
   makeEmissive:emissiveMat,
   setGameplayLocked(v){gameplayLocked=!!v;},
+  getStealthState(){
+    const crouching=!!(keys.ControlLeft||keys.ControlRight||keys.KeyC);
+    const running=!crouching&&!!(keys.ShiftLeft||keys.ShiftRight);
+    return {
+      crouching,
+      running,
+      speed:Math.sqrt(moveVelocity.x*moveVelocity.x+moveVelocity.z*moveVelocity.z)
+    };
+  },
+  getForward(){
+    return new BABYLON.Vector3(
+      -Math.sin(player.rotation.y),0,-Math.cos(player.rotation.y)
+    ).normalize();
+  },
   resetMotion(){
     moveVelocity.set(0,0,0);
     vy=0;
