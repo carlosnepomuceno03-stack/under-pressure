@@ -108,8 +108,8 @@ document.addEventListener('pointermove',e=>{
   // Ignore huge jumps when pointer re-enters the browser window.
   if(Math.abs(dx)>120||Math.abs(dy)>120)return;
 
-  camera.alpha-=dx*.006;
-  camera.beta=BABYLON.Scalar.Clamp(camera.beta+dy*.0045,.72,1.30);
+  camera.alpha+=dx*.006;
+  camera.beta=BABYLON.Scalar.Clamp(camera.beta-dy*.0045,.72,1.30);
 });
 window.addEventListener('blur',()=>{lastMouseX=null;lastMouseY=null});
 document.addEventListener('mouseleave',()=>{lastMouseX=null;lastMouseY=null});
