@@ -425,51 +425,41 @@ class MapScene extends Phaser.Scene{
     // Determine current phase early so mobile can load just the active sector.
     this.phase2=P.phase1Complete&&!P.phase2Complete;
     this.phase3=P.phase2Complete&&!P.phase3Complete;
-    this.activePhase=this.phase3?3:(this.phase2?2:1);
+    this.activePhase=P.phase3Complete?3:(this.phase3?3:(this.phase2?2:1));
 
-    const addDistrict=(phase)=>{
-      if(phase===1){
-        const bg=this.add.image(GW/2,GH/2,'map');
-        this.world.add(bg);
-      }else if(phase===2){
-        const bg=this.add.image(GW+GW/2,GH/2,'map').setFlipX(true).setTint(0x6fb7ff);
-        this.world.add(bg);
-        if(!IS_TOUCH){
-          const grade=this.add.rectangle(GW+GW/2,GH/2,GW,GH,0x1266a8,.14).setBlendMode(Phaser.BlendModes.ADD);
-          this.world.add(grade);
-        }
+    if(IS_TOUCH){
+      // True mobile level loading: only one phase exists in the scene at a time.
+      this.worldW=GW;this.worldH=GH;
+
+      const bg=this.add.image(GW/2,GH/2,'map');
+      if(this.activePhase===2)bg.setFlipX(true).setTint(0x6fb7ff);
+      if(this.activePhase===3)bg.setFlipY(true).setTint(0xd982ff);
+      this.world.add(bg);
+
+      if(this.activePhase===1){
+        this.wall1=this.add.image(1245,408,'clean_wall').setDisplaySize(520,255).setDepth(1);
+        this.world.add(this.wall1);
+      }else if(this.activePhase===2){
+        this.wall2=this.add.image(1120,360,'clean_wall').setDisplaySize(470,240).setDepth(1).setFlipX(true);
+        this.world.add(this.wall2);
       }else{
-        const bg=this.add.image(GW+GW/2,GH+GH/2,'map').setFlipY(true).setTint(0xd982ff);
-        this.world.add(bg);
-        if(!IS_TOUCH){
-          const grade=this.add.rectangle(GW+GW/2,GH+GH/2,GW,GH,0x8c27b8,.15).setBlendMode(Phaser.BlendModes.ADD);
-          this.world.add(grade);
-        }
+        this.wall3=this.add.image(1180,360,'clean_wall').setDisplaySize(500,250).setDepth(1).setTint(0xd7cadf);
+        this.world.add(this.wall3);
       }
-    };
-
-    if(IS_TOUCH){
-      addDistrict(this.activePhase);
     }else{
-      addDistrict(1);addDistrict(2);addDistrict(3);
+      this.worldW=GW*2;this.worldH=GH*2;
+      const bg1=this.add.image(GW/2,GH/2,'map');
+      const bg2=this.add.image(GW+GW/2,GH/2,'map').setFlipX(true).setTint(0x6fb7ff);
+      const bg3=this.add.image(GW+GW/2,GH+GH/2,'map').setFlipY(true).setTint(0xd982ff);
       const bg4=this.add.image(GW/2,GH+GH/2,'map').setFlipX(true).setFlipY(true).setTint(0x63d6a4);
+      const grade2=this.add.rectangle(GW+GW/2,GH/2,GW,GH,0x1266a8,.14).setBlendMode(Phaser.BlendModes.ADD);
+      const grade3=this.add.rectangle(GW+GW/2,GH+GH/2,GW,GH,0x8c27b8,.15).setBlendMode(Phaser.BlendModes.ADD);
       const grade4=this.add.rectangle(GW/2,GH+GH/2,GW,GH,0x167b62,.13).setBlendMode(Phaser.BlendModes.ADD);
-      this.world.add([bg4,grade4]);
-    }
+      this.world.add([bg1,bg2,bg3,bg4,grade2,grade3,grade4]);
 
-    // Mission walls. Mobile keeps only the current wall.
-    const makeWall1=()=>this.add.image(1245,408,'clean_wall').setDisplaySize(520,255).setDepth(1);
-    const makeWall2=()=>this.add.image(GW+505,330,'clean_wall').setDisplaySize(440,235).setDepth(1).setFlipX(true);
-    const makeWall3=()=>this.add.image(GW+1180,GH+360,'clean_wall').setDisplaySize(500,250).setDepth(1).setTint(0xd7cadf);
-
-    if(IS_TOUCH){
-      if(this.activePhase===1){this.wall1=makeWall1();this.world.add(this.wall1)}
-      if(this.activePhase===2){this.wall2=makeWall2();this.world.add(this.wall2)}
-      if(this.activePhase===3){this.wall3=makeWall3();this.world.add(this.wall3)}
-      // Saved graffiti data URLs are intentionally not decoded on mobile map load.
-      // They remain saved and are still used on desktop/replay.
-    }else{
-      this.wall1=makeWall1();this.wall2=makeWall2();this.wall3=makeWall3();
+      this.wall1=this.add.image(1245,408,'clean_wall').setDisplaySize(520,255).setDepth(1);
+      this.wall2=this.add.image(GW+505,330,'clean_wall').setDisplaySize(440,235).setDepth(1).setFlipX(true);
+      this.wall3=this.add.image(GW+1180,GH+360,'clean_wall').setDisplaySize(500,250).setDepth(1).setTint(0xd7cadf);
       this.world.add([this.wall1,this.wall2,this.wall3]);
       if(P.phase1Complete)this.addFinishedGraffiti();
       if(P.phase2Complete)this.addSecondFinishedGraffiti();
@@ -499,21 +489,27 @@ class MapScene extends Phaser.Scene{
     this.blockers=[];
     const addTileRects=(ox,oy)=>baseRects.forEach(r=>this.blockers.push(new Phaser.Geom.Rectangle(r[0]+ox,r[1]+oy,r[2],r[3])));
     if(IS_TOUCH){
-      if(this.activePhase===1)addTileRects(0,0);
-      else if(this.activePhase===2)addTileRects(GW,0);
-      else addTileRects(GW,GH);
+      addTileRects(0,0);
     }else{
       addTileRects(0,0);addTileRects(GW,0);addTileRects(0,GH);addTileRects(GW,GH);
     }
 
-    const phaseStarts={
+    const phaseStarts=IS_TOUCH?{
+      1:{x:790,y:735},
+      2:{x:185,y:735},
+      3:{x:260,y:760}
+    }:{
       1:{x:790,y:735},
       2:{x:GW+120,y:735},
       3:{x:GW+260,y:GH+760}
     };
     const st=phaseStarts[this.activePhase];
     this.player.setPosition(st.x,st.y);this.shadow.setPosition(st.x,st.y+3);this.maskOverlay.setPosition(st.x,st.y);
-    this.point=this.phase3?new Phaser.Math.Vector2(GW+1180,GH+610):(this.phase2?new Phaser.Math.Vector2(GW+505,585):new Phaser.Math.Vector2(1230,618));
+    if(IS_TOUCH){
+      this.point=this.activePhase===1?new Phaser.Math.Vector2(1230,618):(this.activePhase===2?new Phaser.Math.Vector2(1120,585):new Phaser.Math.Vector2(1180,610));
+    }else{
+      this.point=this.phase3?new Phaser.Math.Vector2(GW+1180,GH+610):(this.phase2?new Phaser.Math.Vector2(GW+505,585):new Phaser.Math.Vector2(1230,618));
+    }
     this.halo=this.add.ellipse(this.point.x,this.point.y,138,46,0xffd447,.14).setStrokeStyle(5,0xffd447,.95).setDepth(50);
     this.world.add(this.halo);
     this.tweens.add({targets:this.halo,scaleX:1.16,scaleY:1.16,alpha:.34,duration:800,yoyo:true,repeat:-1});
@@ -526,7 +522,7 @@ class MapScene extends Phaser.Scene{
     this.objHud=this.add.container(-470,24);
     const hudBg=this.add.rectangle(230,55,430,102,0x090c12,.84).setStrokeStyle(2,0xffffff,.09);
     const h1=txt(this,35,22,'OBJETIVO',16,'#ffd447',true);
-    this.h2=txt(this,35,50,P.phase3Complete?'Três spots dominados!':(this.phase3?'Explore a área sul e encontre o terceiro muro':(this.phase2?'Atravesse para o distrito leste sem ser visto':'Vá até o primeiro ponto de graffiti')),20,'#fff',true);
+    this.h2=txt(this,35,50,P.phase3Complete?'Três spots dominados!':(IS_TOUCH?(this.activePhase===1?'Encontre o muro da Fase 1':this.activePhase===2?'Passe pelos guardas e encontre o muro da Fase 2':'Chegue ao último muro sem ser visto'):(this.phase3?'Explore a área sul e encontre o terceiro muro':(this.phase2?'Atravesse para o distrito leste sem ser visto':'Vá até o primeiro ponto de graffiti'))),20,'#fff',true);
     this.h3=txt(this,35,78,P.phase3Complete?`ESTILO: ${P.lastScore} pts • ${'★'.repeat(P.lastStars)}${'☆'.repeat(3-P.lastStars)}`:(this.phase3?'FASE 3 • novo setor':(this.phase2?'FASE 2 • dois policiais patrulhando':`TAG: ${P.tag}`)),14,'#b9c2d1');
     this.objHud.add([hudBg,h1,this.h2,this.h3]);this.ui.add(this.objHud);
 
@@ -595,16 +591,22 @@ class MapScene extends Phaser.Scene{
     };
 
     if(this.activePhase===1){
-      this.guards=[
-        makeGuard(1080,540,'x',175,44,1,0x7088b9)
-      ];
+      this.guards=[makeGuard(1080,540,'x',175,44,1,0x7088b9)];
     }else if(this.activePhase===2){
-      this.guards=[
+      this.guards=IS_TOUCH?[
+        makeGuard(760,390,'x',245,68,1,0x6a85b8),
+        makeGuard(455,690,'y',205,62,-1,0x6f8fbe)
+      ]:[
         makeGuard(GW+740,390,'x',245,68,1,0x6a85b8),
         makeGuard(GW+430,690,'y',205,62,-1,0x6f8fbe)
       ];
     }else{
-      this.guards=[
+      this.guards=IS_TOUCH?[
+        makeGuard(500,460,'x',235,82,1,0x637fb2),
+        makeGuard(900,690,'y',210,78,-1,0x7691c4),
+        makeGuard(1320,500,'x',190,88,-1,0x5f78a8),
+        makeGuard(760,300,'y',160,84,1,0x7898c9)
+      ]:[
         makeGuard(GW+480,GH+460,'x',245,82,1,0x637fb2),
         makeGuard(GW+910,GH+690,'y',220,78,-1,0x7691c4),
         makeGuard(GW+1290,GH+500,'x',210,88,-1,0x5f78a8),
@@ -657,7 +659,7 @@ class MapScene extends Phaser.Scene{
     }
     if(this.stealthCaught>=1){
       this.stealthCaught=0;AUDIO.siren();
-      const starts={1:{x:790,y:735},2:{x:GW+120,y:735},3:{x:GW+260,y:GH+760}};
+      const starts=IS_TOUCH?{1:{x:790,y:735},2:{x:185,y:735},3:{x:260,y:760}}:{1:{x:790,y:735},2:{x:GW+120,y:735},3:{x:GW+260,y:GH+760}};
       const st=starts[this.activePhase];this.player.setPosition(st.x,st.y);this.shadow.setPosition(st.x,st.y+3);
       this.showObjective(true);
       const t=txt(this,GW/2,190,'OS POLICIAIS TE VIRAM — VOLTEI VOCÊ PRO INÍCIO',19,'#ff4f77',true).setOrigin(.5).setBackgroundColor('#090c12').setPadding(12,8);
@@ -713,18 +715,26 @@ class MapScene extends Phaser.Scene{
   createMiniMap(){
     this.mapHud=this.add.container(GW-215,210).setDepth(25000);
     const bg=this.add.rectangle(0,0,310,205,0x070a0f,.9).setStrokeStyle(2,0xffffff,.15);
-    const title=txt(this,-138,-88,'MAPA',14,'#ffd447',true);
+    const title=txt(this,-138,-88,IS_TOUCH?'MAPA DA FASE '+this.activePhase:'MAPA',14,'#ffd447',true);
     this.mmW=270;this.mmH=150;
     const mapBox=this.add.rectangle(0,12,this.mmW,this.mmH,0x141b28,1).setStrokeStyle(2,0x566075,.7);
-    // Four reused districts.
-    const q1=this.add.rectangle(-67.5,-25.5,132,72,0x1d2738,.9);
-    const q2=this.add.rectangle(67.5,-25.5,132,72,0x174c7a,.95);
-    const q3=this.add.rectangle(-67.5,49.5,132,72,0x17614d,.95);
-    const q4=this.add.rectangle(67.5,49.5,132,72,0x653078,.95);
+    const parts=[bg,title,mapBox];
+    if(IS_TOUCH){
+      const levelColor=this.activePhase===1?0x1d2738:(this.activePhase===2?0x174c7a:0x653078);
+      parts.push(this.add.rectangle(0,12,258,138,levelColor,.95));
+    }else{
+      parts.push(
+        this.add.rectangle(-67.5,-25.5,132,72,0x1d2738,.9),
+        this.add.rectangle(67.5,-25.5,132,72,0x174c7a,.95),
+        this.add.rectangle(-67.5,49.5,132,72,0x17614d,.95),
+        this.add.rectangle(67.5,49.5,132,72,0x653078,.95)
+      );
+    }
     this.mmPlayer=this.add.circle(0,0,7,0xffd447,1).setStrokeStyle(2,0xffffff,1);
     this.mmGoal=this.add.circle(0,0,6,0xff2d78,.95).setStrokeStyle(2,0xffffff,.8);
     const legend=txt(this,-138,92,'● VOCÊ   ● SPOT',11,'#c8d0dc',true);
-    this.mapHud.add([bg,title,mapBox,q1,q2,q3,q4,this.mmGoal,this.mmPlayer,legend]);this.ui.add(this.mapHud);
+    parts.push(this.mmGoal,this.mmPlayer,legend);
+    this.mapHud.add(parts);this.ui.add(this.mapHud);
     this.updateMiniMap();
   }
 
@@ -760,14 +770,26 @@ class MapScene extends Phaser.Scene{
       this.collectibles.push({type,obj:c,x,y});
     };
 
-    if(P.phase1Complete&&!P.bucketUnlocked)addItem('bucket',955,610,'BALDE',0xffd447,'bucket');
-    if(P.phase1Complete&&!P.skinnyCapUnlocked)addItem('skinny',1170,760,'CAP FINO',0x19d7e7,'cap');
-
-    if(P.phase2Complete&&!P.fatCapUnlocked)addItem('fat',GW+760,730,'CAP FAT',0xff5b35,'cap');
-    if(P.phase2Complete&&!P.legendarySprays.includes('#8c63ff'))addItem('uv',GW+980,600,'UV LENDÁRIA',0x8c63ff,'can');
-
-    if(P.phase3Complete&&!P.glovesUnlocked)addItem('gloves',GW+1180,GH+760,'LUVAS PRO',0xe7e7e7,'glove');
-    if(P.phase3Complete&&!P.legendarySprays.includes('#39ff88'))addItem('acid',GW+1390,GH+690,'ACID LENDÁRIA',0x39ff88,'can');
+    if(IS_TOUCH){
+      // Rewards appear only in the newly unlocked/current phase.
+      if(this.activePhase===2){
+        if(P.phase1Complete&&!P.bucketUnlocked)addItem('bucket',620,610,'BALDE',0xffd447,'bucket');
+        if(P.phase1Complete&&!P.skinnyCapUnlocked)addItem('skinny',900,735,'CAP FINO',0x19d7e7,'cap');
+      }
+      if(this.activePhase===3){
+        if(P.phase2Complete&&!P.fatCapUnlocked)addItem('fat',610,720,'CAP FAT',0xff5b35,'cap');
+        if(P.phase2Complete&&!P.legendarySprays.includes('#8c63ff'))addItem('uv',930,600,'UV LENDÁRIA',0x8c63ff,'can');
+        if(P.phase3Complete&&!P.glovesUnlocked)addItem('gloves',1160,760,'LUVAS PRO',0xe7e7e7,'glove');
+        if(P.phase3Complete&&!P.legendarySprays.includes('#39ff88'))addItem('acid',1390,690,'ACID LENDÁRIA',0x39ff88,'can');
+      }
+    }else{
+      if(P.phase1Complete&&!P.bucketUnlocked)addItem('bucket',955,610,'BALDE',0xffd447,'bucket');
+      if(P.phase1Complete&&!P.skinnyCapUnlocked)addItem('skinny',1170,760,'CAP FINO',0x19d7e7,'cap');
+      if(P.phase2Complete&&!P.fatCapUnlocked)addItem('fat',GW+760,730,'CAP FAT',0xff5b35,'cap');
+      if(P.phase2Complete&&!P.legendarySprays.includes('#8c63ff'))addItem('uv',GW+980,600,'UV LENDÁRIA',0x8c63ff,'can');
+      if(P.phase3Complete&&!P.glovesUnlocked)addItem('gloves',GW+1180,GH+760,'LUVAS PRO',0xe7e7e7,'glove');
+      if(P.phase3Complete&&!P.legendarySprays.includes('#39ff88'))addItem('acid',GW+1390,GH+690,'ACID LENDÁRIA',0x39ff88,'can');
+    }
   }
 
   checkCollectibles(){
