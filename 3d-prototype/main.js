@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='ACTION+REAL ART V34';
+const BUILD='ACTION+MOBILE+REAL ART V36';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -486,7 +486,7 @@ function animateRig(dt,moveAmount,isRunning,isJumping,isClimbing,isCrouching=fal
     kneeR=.78+Math.max(0,c)*.32;
     ankleL=-.20;
     ankleR=-.20;
-    torsoLean=.27;
+    torsoLean=.31;
   }else if(isJumping){
     armL=-.38;
     armR=-.38;
@@ -540,7 +540,7 @@ function animateRig(dt,moveAmount,isRunning,isJumping,isClimbing,isCrouching=fal
   chest.rotation.x=dampAngle(chest.rotation.x,torsoLean*.55,dt);
 
   const bounce=(moving&&!isJumping&&!isClimbing&&!isCrouching)?Math.abs(cycle)*.025:0;
-  const crouchY=isCrouching?-.52:-.05;
+  const crouchY=isCrouching?-.58:-.05;
   rigRoot.position.y=dampAngle(rigRoot.position.y,crouchY+bounce,dt,16);
 }
 
@@ -690,6 +690,13 @@ function getMoveIntentWorld(){
       wish.addInPlace(f.scale(-ay));
     }
   }
+
+  const mobile=mobileInput();
+  if(Math.abs(mobile.x)>.06||Math.abs(mobile.y)>.06){
+    wish.addInPlace(r.scale(mobile.x));
+    wish.addInPlace(f.scale(mobile.y));
+  }
+
   if(wish.lengthSquared()>1)wish.normalize();
   return wish;
 }
@@ -737,6 +744,9 @@ function updateDirectionalRoll(dt){
     rollAnim.timer=0;
     rigRoot.rotation.x=0;
     rigRoot.position.y=-.05;
+    torso.rotation.y=0;
+    chest.rotation.y=0;
+    pelvis.rotation.y=0;
   }
   return true;
 }
@@ -992,6 +1002,7 @@ scene.onBeforeRenderObservable.add(()=>{
     return;
   }
 
+  const mobile=mobileInput();
   let wish=getMoveIntentWorld();
 
   const crouching=!!(keys.ControlLeft||keys.ControlRight||keys.KeyC||mobile.crouch);
@@ -1137,23 +1148,52 @@ scene.onBeforeRenderObservable.add(()=>{
       rigRoot.position.z=.18*smash;
     }else{
       const snap=impact;
-      torso.rotation.y=side*(-.34*anticipation+.78*snap);
-      chest.rotation.y=side*(-.15*anticipation+.34*snap);
-      pelvis.rotation.y=-side*(-.12*anticipation+.26*snap);
-      torso.rotation.x=.08*anticipation+.14*snap;
-      attackShoulder.rotation.x=-1.12*anticipation-1.10*snap;
-      attackShoulder.rotation.z=-side*(.72*anticipation+1.18*snap);
-      attackElbow.rotation.x=-.58*anticipation+.22*snap;
-      otherShoulder.rotation.x=.34*anticipation-.24*snap;
-      const planted=side>0?lHip:rHip;
-      const driving=side>0?rHip:lHip;
-      planted.rotation.x+=.10*anticipation;
-      driving.rotation.x-=.20*snap;
-      rigRoot.position.z=.12*snap;
+      const finisher=combatAnim.combo===3;
+
+      if(finisher){
+        // Third light input: compact action-game kick using hips, planted leg and arms for balance.
+        torso.rotation.y=side*(-.28*anticipation+.62*snap);
+        chest.rotation.y=side*(-.12*anticipation+.28*snap);
+        pelvis.rotation.y=side*(.18*anticipation-.44*snap);
+        torso.rotation.x=.18*anticipation-.12*snap;
+        lShoulder.rotation.x=-.48*anticipation+.42*snap;
+        rShoulder.rotation.x=-.48*anticipation+.42*snap;
+        lElbow.rotation.x=-.42;
+        rElbow.rotation.x=-.42;
+
+        const kicking=side>0?rHip:lHip;
+        const kickingKnee=side>0?rKnee:lKnee;
+        const planted=side>0?lHip:rHip;
+        kicking.rotation.x=-.46*anticipation-1.18*snap;
+        kickingKnee.rotation.x=.92*anticipation-.58*snap;
+        planted.rotation.x+=.22*anticipation;
+        rigRoot.position.y+=.05*snap;
+        rigRoot.position.z=.18*snap;
+      }else{
+        // Jab / cross alternate sides with visible shoulder, chest and hip drive.
+        torso.rotation.y=side*(-.38*anticipation+.86*snap);
+        chest.rotation.y=side*(-.18*anticipation+.40*snap);
+        pelvis.rotation.y=-side*(-.14*anticipation+.31*snap);
+        torso.rotation.x=.09*anticipation+.15*snap;
+        attackShoulder.rotation.x=-1.18*anticipation-1.18*snap;
+        attackShoulder.rotation.z=-side*(.76*anticipation+1.28*snap);
+        attackElbow.rotation.x=-.62*anticipation+.28*snap;
+        otherShoulder.rotation.x=.38*anticipation-.28*snap;
+        const planted=side>0?lHip:rHip;
+        const driving=side>0?rHip:lHip;
+        planted.rotation.x+=.12*anticipation;
+        driving.rotation.x-=.24*snap;
+        rigRoot.position.z=.14*snap;
+      }
     }
 
     if(grounded&&impact>.25){
-      player.moveWithCollisions(playerForward().scale((combatAnim.type==='heavy'?.95:.60)*impact*dt));
+      const lunge=combatAnim.type==='heavy'?2.15:(combatAnim.combo===3?2.45:1.75);
+      player.moveWithCollisions(playerForward().scale(lunge*impact*dt));
+      // Small deterministic impact bump; does not change camera yaw/pitch.
+      if(!firstPerson){
+        camera.position.y+=Math.sin(impact*Math.PI)*.018;
+      }
     }
     if(recovery>.75)rigRoot.position.z=BABYLON.Scalar.Lerp(rigRoot.position.z,0,.38);
   }else{
@@ -1162,6 +1202,9 @@ scene.onBeforeRenderObservable.add(()=>{
     pelvis.rotation.y=dampAngle(pelvis.rotation.y,0,dt,18);
     lShoulder.rotation.z=dampAngle(lShoulder.rotation.z,0,dt,18);
     rShoulder.rotation.z=dampAngle(rShoulder.rotation.z,0,dt,18);
+    lElbow.rotation.z=dampAngle(lElbow.rotation.z,0,dt,18);
+    rElbow.rotation.z=dampAngle(rElbow.rotation.z,0,dt,18);
+    pelvis.rotation.y=dampAngle(pelvis.rotation.y,0,dt,18);
     rigRoot.position.z=BABYLON.Scalar.Lerp(rigRoot.position.z,0,1-Math.exp(-18*dt));
   }
 
