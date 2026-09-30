@@ -1,0 +1,31 @@
+name: Import Under Pressure Player GLB
+
+on:
+  push:
+    paths:
+      - ".github/workflows/import-player-glb.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-player:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download player GLB
+        run: |
+          mkdir -p 3d-prototype/assets/characters/player
+          curl --fail --location --retry 3 \
+            "https://695d5a9fc666e505559765690b5db7dd.r2.cloudflarestorage.com/3d-scene-builder/projects/c34db6fa-c159-4c17-b3c7-16731123531c/revisions/00000001-build-player-main-v1d/preview.glb?X-Amz-Expires=900&X-Amz-Date=20260930T152531Z&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=f4fb15da414147020cebc9c7007b912d%2F20260930%2Fauto%2Fs3%2Faws4_request&X-Amz-SignedHeaders=host&X-Amz-Signature=daa2b9e29c84db239d38002849cbff653bdfc88e7a38a955fe7c32462adcfb9e" \
+            -o 3d-prototype/assets/characters/player/player_main.glb
+          test -s 3d-prototype/assets/characters/player/player_main.glb
+      - name: Commit GLB
+        run: |
+          git config user.name "under-pressure-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add 3d-prototype/assets/characters/player/player_main.glb
+          git diff --cached --quiet && exit 0
+          git commit -m "Add generated player_main GLB"
+          git push
