@@ -353,7 +353,7 @@
     STATE.alert=0;
     STATE.alertState='SAFE';
     G.setGameplayLocked(false);
-    player.position.set(-16,1.2,27);
+    player.position.set(-5,5.55,28);
     G.resetMotion();
     setHp(100);
     guards[0].root.position.copyFrom(guards[0].points[0]);
@@ -408,7 +408,7 @@
   });
 
   // graffiti interaction point
-  const graffitiPoint=new BABYLON.Vector3(26,1.1,-24.4);
+  const graffitiPoint=new BABYLON.Vector3(12,1.1,-27.9);
   const graffitiMarker=BABYLON.MeshBuilder.CreateTorus('graffitiMarker',{diameter:2.2,thickness:.10,tessellation:30},scene);
   graffitiMarker.position.copyFrom(graffitiPoint);graffitiMarker.rotation.x=Math.PI/2;
   graffitiMarker.material=pickupMat[0];graffitiMarker.checkCollisions=false;graffitiMarker.isPickable=false;
