@@ -1,16 +1,25 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='FACING FIX V24';
+const BUILD='VISUAL PASS V25';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
 const scene=new BABYLON.Scene(engine);
-scene.clearColor=new BABYLON.Color4(0.035,0.045,0.075,1);
+scene.clearColor=new BABYLON.Color4(0.025,0.035,0.075,1);
+scene.fogMode=BABYLON.Scene.FOGMODE_EXP2;
+scene.fogDensity=.0065;
+scene.fogColor=new BABYLON.Color3(.055,.07,.12);
+scene.imageProcessingConfiguration.exposure=1.08;
+scene.imageProcessingConfiguration.contrast=1.18;
 
 const light=new BABYLON.HemisphericLight('hemi',new BABYLON.Vector3(0,1,0),scene);
-light.intensity=.72;
+light.intensity=.56;
+light.diffuse=new BABYLON.Color3(.48,.57,.78);
+light.groundColor=new BABYLON.Color3(.22,.12,.10);
+
 const sun=new BABYLON.DirectionalLight('sun',new BABYLON.Vector3(-.45,-1,.35),scene);
 sun.position=new BABYLON.Vector3(25,35,-20);
-sun.intensity=.65;
+sun.intensity=.72;
+sun.diffuse=new BABYLON.Color3(1,.58,.34);
 
 const mat=(name,hex)=>{
   const m=new BABYLON.StandardMaterial(name,scene);
@@ -18,13 +27,34 @@ const mat=(name,hex)=>{
   m.specularColor=new BABYLON.Color3(.05,.05,.05);
   return m;
 };
-const asphalt=mat('asphalt','#34373f');
-const dirt=mat('dirt','#8b4c32');
-const concrete=mat('concrete','#77736f');
-const wallMat=mat('wall','#9a8f82');
-const roofMat=mat('roof','#6f3d32');
+const asphalt=mat('asphalt','#252936');
+const dirt=mat('dirt','#8e472d');
+const concrete=mat('concrete','#8d8982');
+const wallMat=mat('wall','#81786f');
+const roofMat=mat('roof','#63382f');
 const accent=mat('accent','#14d7e8');
 const playerMat=mat('player','#d7d4c7');
+
+const wallLight=mat('wallLight','#9d9285');
+const wallDark=mat('wallDark','#655f59');
+const brickMat=mat('brick','#7d4436');
+const metalMat=mat('metal','#4f555c');
+const woodMat=mat('wood','#6d4934');
+const plantMat=mat('plant','#304b2d');
+const plantLight=mat('plantLight','#46633a');
+const tireMat=mat('tire','#15171a');
+const bluePaint=mat('bluePaint','#17667a');
+const yellowPaint=mat('yellowPaint','#c78c2b');
+const curbMat=mat('curb','#c1bdb4');
+
+function emissiveMat(name,hex,intensity=1){
+  const m=mat(name,hex);
+  const c=BABYLON.Color3.FromHexString(hex);
+  m.emissiveColor=c.scale(intensity);
+  return m;
+}
+const warmGlow=emissiveMat('warmGlow','#ffb35a',.85);
+const cyanGlow=emissiveMat('cyanGlow','#41e7ff',.75);
 
 function box(name,w,h,d,x,y,z,material,climbable=true){
   const b=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
@@ -40,15 +70,16 @@ function cyl(name,diam,h,x,y,z,material){
 // ground / road / lot
 box('ground',90,.4,70,0,-.2,0,dirt,false);
 box('road',18,.24,70,-15,.02,0,asphalt,false);
-box('sidewalkL',3,.35,70,-24,.08,0,concrete,false);
-box('sidewalkR',2.6,.35,70,-5.7,.08,0,concrete,false);
+box('sidewalkL',3,.35,70,-24,.08,0,curbMat,false);
+box('sidewalkR',2.6,.35,70,-5.7,.08,0,curbMat,false);
 
 // buildings left street
 for(let i=0;i<6;i++){
   const z=-28+i*11;
   const h=5+(i%2)*2.2;
-  box('houseL'+i,10,h,8,-31,h/2,z,wallMat);
-  box('roofL'+i,10.5,.45,8.5,-31,h+.22,z,roofMat);
+  const facade=[wallMat,wallLight,wallDark,brickMat][i%4];
+  box('houseL'+i,10,h,8,-31,h/2,z,facade);
+  box('roofL'+i,10.5,.45,8.5,-31,h+.22,z,i%2?roofMat:metalMat);
 }
 // parkour buildings right
 box('shop1',9,4.5,8,8,2.25,18,wallMat,true);
@@ -68,6 +99,12 @@ box('ledge',5,.35,1.3,12,3.4,17,concrete,true);
 box('bridgeRoof',5,.35,3,13,5.3,12,roofMat,true);
 box('highLedge',4,.35,1.1,24,6.3,5,concrete,true);
 box('landing',4,.4,4,26,8.5,1,roofMat,true);
+for(const p of [[8,5.25,18],[18,7.25,8],[30,8.95,-3]]){
+  const beacon=BABYLON.MeshBuilder.CreateSphere('roofBeacon'+p[0],{diameter:.18,segments:8},scene);
+  beacon.position.set(p[0],p[1],p[2]);
+  beacon.material=cyanGlow;
+  beacon.checkCollisions=false;
+}
 
 // campao obstacles
 for(const p of [[8,.6,-6],[13,.8,-10],[18,.55,-14],[4,.5,-18]]){
@@ -77,9 +114,167 @@ for(const p of [[8,.6,-6],[13,.8,-10],[18,.55,-14],[4,.5,-18]]){
 const mural=box('mural',18,8,.8,26,4,-27,wallMat);
 mural.material=mat('muralMat','#b8b0a5');
 
-// poles
-for(const z of [-28,-14,0,14,28]){
-  cyl('pole'+z,.45,8,-8,4,z,concrete);
+// urban props / street infrastructure
+const poleZ=[-28,-14,0,14,28];
+for(const z of poleZ){
+  const pole=cyl('pole'+z,.34,8,-8,4,z,metalMat);
+  pole.metadata={climbable:false};
+
+  const arm=box('lampArm'+z,2.1,.12,.12,-8.8,7.15,z,metalMat,false);
+  const bulb=BABYLON.MeshBuilder.CreateSphere('bulb'+z,{diameter:.28,segments:8},scene);
+  bulb.position.set(-9.7,7.02,z);
+  bulb.material=warmGlow;
+  bulb.checkCollisions=false;
+
+  const pl=new BABYLON.PointLight('streetLight'+z,new BABYLON.Vector3(-9.7,6.8,z),scene);
+  pl.diffuse=new BABYLON.Color3(1,.55,.25);
+  pl.intensity=.48;
+  pl.range=13;
+}
+
+// overhead wiring
+function wire(name,points){
+  const line=BABYLON.MeshBuilder.CreateLines(name,{points},scene);
+  line.color=new BABYLON.Color3(.06,.07,.09);
+  line.isPickable=false;
+  return line;
+}
+for(let i=0;i<poleZ.length-1;i++){
+  const z1=poleZ[i],z2=poleZ[i+1];
+  wire('wireA'+i,[
+    new BABYLON.Vector3(-8,7.4,z1),
+    new BABYLON.Vector3(-8,6.95,(z1+z2)/2),
+    new BABYLON.Vector3(-8,7.4,z2)
+  ]);
+  wire('wireB'+i,[
+    new BABYLON.Vector3(-7.75,7.15,z1),
+    new BABYLON.Vector3(-7.75,6.78,(z1+z2)/2),
+    new BABYLON.Vector3(-7.75,7.15,z2)
+  ]);
+}
+
+function addWindow(name,x,y,z,w=1.15,h=.9,glow=warmGlow){
+  const win=box(name,w,h,.08,x,y,z,glow,false);
+  win.checkCollisions=false;
+  return win;
+}
+function addDoor(name,x,y,z,w=1.15,h=2.15,material=metalMat){
+  return box(name,w,h,.12,x,y,z,material,false);
+}
+function addTree(name,x,z,scale=1){
+  const trunk=cyl(name+'Trunk',.52*scale,3.5*scale,x,1.75*scale,z,woodMat);
+  trunk.metadata={climbable:false};
+  for(let i=0;i<4;i++){
+    const crown=BABYLON.MeshBuilder.CreateSphere(name+'Crown'+i,{diameter:(2.3+(i%2)*.5)*scale,segments:7},scene);
+    crown.position.set(x+(i-1.5)*.48*scale,3.5*scale+(i%2)*.35*scale,z+((i%2)?-.45:.45)*scale);
+    crown.material=i%2?plantMat:plantLight;
+    crown.checkCollisions=false;
+  }
+}
+function addCrate(name,x,z,y=.55){
+  const c=box(name,1.15,1.1,1.15,x,y,z,woodMat,true);
+  const band1=box(name+'Band1',1.18,.08,1.18,x,y+.26,z,metalMat,false);
+  const band2=box(name+'Band2',1.18,.08,1.18,x,y-.26,z,metalMat,false);
+  band1.checkCollisions=false; band2.checkCollisions=false;
+}
+function addTire(name,x,z){
+  const t=BABYLON.MeshBuilder.CreateTorus(name,{diameter:1.0,thickness:.22,tessellation:14},scene);
+  t.position.set(x,.28,z);
+  t.rotation.x=Math.PI/2;
+  t.material=tireMat;
+  t.checkCollisions=false;
+}
+function addDumpster(name,x,z){
+  box(name,1.9,1.25,1.15,x,.62,z,bluePaint,true);
+  const lid=box(name+'Lid',2.0,.14,1.2,x,1.31,z,metalMat,false);
+  lid.rotation.x=-.08;
+}
+function addWaterTank(name,x,y,z){
+  const tank=BABYLON.MeshBuilder.CreateCylinder(name,{diameter:1.65,height:1.45,tessellation:16},scene);
+  tank.position.set(x,y,z);
+  tank.material=tireMat;
+  tank.checkCollisions=false;
+}
+function addLadder(name,x,y,z,height=4){
+  for(let i=0;i<2;i++) box(name+'Rail'+i,.11,height,.11,x+(i? .45:-.45),y,z,metalMat,false);
+  const steps=Math.floor(height/.42);
+  for(let i=0;i<steps;i++) box(name+'Step'+i,1.0,.08,.12,x,y-height/2+.3+i*.42,z,metalMat,false);
+}
+
+// storefront / windows / doors
+addDoor('doorL1',-25.92,1.15,18,.95,2.2,metalMat);
+addWindow('windowL1',-25.91,2.3,13,1.45,1.0,warmGlow);
+addWindow('windowL2',-25.91,2.2,-8,1.35,.95,warmGlow);
+addDoor('shopDoor',3.55,1.2,18,1.0,2.3,bluePaint);
+addWindow('shopGlow',3.54,2.75,18,2.2,.72,cyanGlow);
+
+// campao details
+addTree('treeA',9,-2,1.18);
+addTree('treeB',21,-18,.78);
+addDumpster('dumpster',3,-8);
+addCrate('crateA',7,-13);
+addCrate('crateB',15,-18);
+addTire('tireA',11,-6);
+addTire('tireB',19,-12);
+addTire('tireC',6,-20);
+
+// rooftop props
+addWaterTank('tank1',30,9.45,-2);
+addWaterTank('tank2',18,7.72,8);
+addLadder('ladder1',13.9,2.25,18,4.3);
+addLadder('ladder2',24.8,4.8,4.5,4.8);
+
+// route accents without arrows/text
+for(const p of [[3,.12,22],[7,.12,15],[12,.12,8],[17,.12,1]]){
+  const marker=box('routeStone'+p[0],1.0,.18,.75,p[0],p[1],p[2],yellowPaint,false);
+  marker.checkCollisions=false;
+}
+
+// mural lighting + actual graffiti texture
+const muralTex=new BABYLON.DynamicTexture('muralTex',{width:1024,height:512},scene,false);
+const ctx=muralTex.getContext();
+ctx.fillStyle='#b7afa5'; ctx.fillRect(0,0,1024,512);
+ctx.fillStyle='#5d544c';
+for(let i=0;i<80;i++){
+  const x=(i*137)%1024, y=(i*79)%512;
+  ctx.globalAlpha=.08+(i%4)*.025;
+  ctx.fillRect(x,y,18+(i%5)*11,4+(i%3)*5);
+}
+ctx.globalAlpha=1;
+ctx.font='900 120px Arial';
+ctx.textAlign='center';
+ctx.lineWidth=12;
+ctx.strokeStyle='#17151b';
+ctx.fillStyle='#f2e9dc';
+ctx.strokeText('UNDER',512,205); ctx.fillText('UNDER',512,205);
+ctx.strokeStyle='#17151b'; ctx.fillStyle='#35d7df';
+ctx.strokeText('PRESSURE',512,335); ctx.fillText('PRESSURE',512,335);
+ctx.font='900 76px Arial';
+ctx.strokeStyle='#17151b'; ctx.fillStyle='#e74b6f';
+ctx.strokeText('TDG',512,435); ctx.fillText('TDG',512,435);
+muralTex.update();
+
+const muralGameMat=new BABYLON.StandardMaterial('muralGameMat',scene);
+muralGameMat.diffuseTexture=muralTex;
+muralGameMat.specularColor=new BABYLON.Color3(.05,.05,.05);
+mural.material=muralGameMat;
+
+for(const x of [20,32]){
+  const glow=BABYLON.MeshBuilder.CreateSphere('muralLamp'+x,{diameter:.22,segments:8},scene);
+  glow.position.set(x,7.25,-26.45);
+  glow.material=warmGlow;
+  glow.checkCollisions=false;
+  const pl=new BABYLON.PointLight('muralLight'+x,new BABYLON.Vector3(x,7,-25.8),scene);
+  pl.diffuse=new BABYLON.Color3(1,.57,.3);
+  pl.intensity=.7;
+  pl.range=12;
+}
+
+// distant skyline silhouettes
+for(let i=0;i<18;i++){
+  const w=3+(i%4), h=3+(i%5)*1.2, d=4+(i%3);
+  const b=box('skyline'+i,w,h,d,-42+i*5.4,h/2-1,-43,wallDark,false);
+  b.checkCollisions=false;
 }
 
 // player collider + simple humanoid visual rig
