@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='ACTION+MOBILE+REAL ART V36';
+const BUILD='VISUAL+MOBILE FIX V37';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -8,8 +8,8 @@ scene.clearColor=new BABYLON.Color4(0.055,0.075,0.145,1);
 scene.fogMode=BABYLON.Scene.FOGMODE_EXP2;
 scene.fogDensity=.0048;
 scene.fogColor=new BABYLON.Color3(.09,.10,.16);
-scene.imageProcessingConfiguration.exposure=1.08;
-scene.imageProcessingConfiguration.contrast=1.18;
+scene.imageProcessingConfiguration.exposure=1.14;
+scene.imageProcessingConfiguration.contrast=1.26;
 
 const light=new BABYLON.HemisphericLight('hemi',new BABYLON.Vector3(0,1,0),scene);
 light.intensity=.68;
@@ -55,6 +55,41 @@ function emissiveMat(name,hex,intensity=1){
 }
 const warmGlow=emissiveMat('warmGlow','#ffb35a',.85);
 const cyanGlow=emissiveMat('cyanGlow','#41e7ff',.75);
+
+function makeSurfaceTexture(name,bg,marks=[]){
+  const tex=new BABYLON.DynamicTexture(name,{width:512,height:512},scene,false);
+  const c=tex.getContext();
+  c.fillStyle=bg;c.fillRect(0,0,512,512);
+  for(let i=0;i<180;i++){
+    const m=marks[i%Math.max(1,marks.length)]||'rgba(255,255,255,.03)';
+    c.fillStyle=m;
+    const x=(i*83)%512,y=(i*137)%512;
+    const w=3+(i%7)*9,h=2+(i%5)*3;
+    c.globalAlpha=.22+(i%4)*.05;
+    c.fillRect(x,y,w,h);
+  }
+  c.globalAlpha=1;tex.update();
+  tex.wrapU=BABYLON.Texture.WRAP_ADDRESSMODE;
+  tex.wrapV=BABYLON.Texture.WRAP_ADDRESSMODE;
+  tex.uScale=3;tex.vScale=6;
+  return tex;
+}
+asphalt.diffuseTexture=makeSurfaceTexture('asphaltTex','#242732',['#30333d','#17191f','#3b3d46']);
+dirt.diffuseTexture=makeSurfaceTexture('dirtTex','#8d452e',['#6d3424','#a85a3d','#7a3a27']);
+wallMat.diffuseTexture=makeSurfaceTexture('wallTex','#81786f',['#6c645d','#958a80','#5e5752']);
+wallLight.diffuseTexture=makeSurfaceTexture('wallLightTex','#9c9184',['#b0a398','#7e766f','#6d655e']);
+concrete.diffuseTexture=makeSurfaceTexture('concreteTex','#8b8781',['#77736e','#a09a92','#66625e']);
+roofMat.diffuseTexture=makeSurfaceTexture('roofTex','#61362f',['#7b493e','#4c2a25','#8b5143']);
+
+const glowLayer=new BABYLON.GlowLayer('worldGlow',scene,{blurKernelSize:16});
+glowLayer.intensity=.22;
+
+function decalPlane(name,w,h,x,y,z,material,rotY=0){
+  const p=BABYLON.MeshBuilder.CreatePlane(name,{width:w,height:h},scene);
+  p.position.set(x,y,z);p.rotation.y=rotY;p.material=material;
+  p.checkCollisions=false;p.isPickable=false;return p;
+}
+
 
 function box(name,w,h,d,x,y,z,material,climbable=true){
   const b=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
@@ -352,6 +387,54 @@ for(const [x,y,z,cold] of [
   pl.range=8;
 }
 
+// extra neighborhood dressing: stains, parapets, shutters, curb wear, cables and rooftop clutter
+const stainMat=mat('stainMat','#4c4743'); stainMat.alpha=.22;
+const fadedBlue=mat('fadedBlue','#315a67');
+const fadedGreen=mat('fadedGreen','#4e6048');
+const fadedRed=mat('fadedRed','#7b4239');
+
+for(const [x,z,w,h] of [
+  [-25.84,-26,3.1,1.4],[-25.84,-14,2.3,1.0],[-25.84,8,3.4,1.2],
+  [3.52,18,2.7,.9],[13.5,17,2.1,.8],[24.4,5,2.5,.8]
+]){
+  const s=decalPlane('weather'+x+z,w,h,x,1.15,z,stainMat,Math.PI/2);
+}
+
+for(const [x,y,z,w,d] of [
+  [8,5.05,18,9.7,8.7],[18,7.05,8,10.7,9.7],[30,8.75,-3,11.7,9.7]
+]){
+  box('parapetA'+x,w,.34,.28,x-w/2+.15,y,z,concrete,false).checkCollisions=false;
+  box('parapetB'+x,w,.34,.28,x+w/2-.15,y,z,concrete,false).checkCollisions=false;
+}
+
+for(const [x,y,z,matr] of [
+  [-25.82,1.7,-26,fadedBlue],[-25.82,1.7,-4,fadedGreen],[-25.82,1.7,20,fadedRed],
+  [3.50,1.8,18,fadedBlue]
+]){
+  const sh=box('shutter'+x+z,2.6,2.5,.08,x,y,z,matr,false);sh.checkCollisions=false;
+  for(let k=-4;k<=4;k++){
+    const sl=box('slat'+x+z+k,2.35,.035,.04,x,y+k*.23,z-.05,metalMat,false);sl.checkCollisions=false;
+  }
+}
+
+for(let z=-31;z<=31;z+=5){
+  if(z%10===0)continue;
+  const crack=BABYLON.MeshBuilder.CreateLines('crack'+z,{points:[
+    new BABYLON.Vector3(-17.7,.17,z),
+    new BABYLON.Vector3(-16.9,.175,z+.22),
+    new BABYLON.Vector3(-16.1,.176,z-.08)
+  ]},scene);
+  crack.color=new BABYLON.Color3(.08,.08,.10);crack.isPickable=false;
+}
+
+// corrugated-roof suggestion using thin ribs
+for(const [x,y,z,w,d] of [[8,4.96,18,9.2,8.1],[18,6.96,8,10.2,9.1],[30,8.66,-3,11.2,9.1]]){
+  for(let rx=-w/2+.35;rx<w/2;rx+=.55){
+    const rib=box('roofRib'+x+rx,.05,.07,d,x+rx,y,z,metalMat,false);
+    rib.checkCollisions=false;
+  }
+}
+
 // TDG roster retained as world/lore data.
 // Visual tags are intentionally disabled until they can be attached to real wall surfaces.
 const crewNames=['NEPO','TRANE','NOROK','ICON','GOM','MM','OFF','PRIKS','ANJO','SINUK','ASKA','TALYN','PATEK','ERRARO','RODEF','BOLA'];
@@ -440,7 +523,7 @@ const rFoot=limbBox('rFoot',.24,.14,.42,rAnkle,0,-.05,.15,rigDark);
 let animClock=0;
 let lastPlayerPos=player.position.clone();
 const combatAnim={type:null,timer:0,duration:0,side:1,combo:0};
-const rollAnim={active:false,timer:0,duration:.56,dir:new BABYLON.Vector3(0,0,1)};
+const rollAnim={active:false,timer:0,duration:.62,dir:new BABYLON.Vector3(0,0,1)};
 
 function dampAngle(current,target,dt,speed=12){
   return BABYLON.Scalar.Lerp(current,target,1-Math.exp(-speed*dt));
@@ -720,33 +803,33 @@ function updateDirectionalRoll(dt){
   if(!rollAnim.active)return false;
   rollAnim.timer+=dt;
   const t=BABYLON.Scalar.Clamp(rollAnim.timer/rollAnim.duration,0,1);
+  const ease=t*t*(3-2*t);
   const tuck=Math.sin(Math.PI*t);
-  const speed=8.6*(1-t*.55);
+  const speed=BABYLON.Scalar.Lerp(7.9,3.1,ease);
   player.moveWithCollisions(rollAnim.dir.scale(speed*dt));
 
-  // Whole rig rolls while the collision capsule stays upright/stable.
+  // Shoulder-roll: compact silhouette, one clean rotation, stable collision capsule.
   rigRoot.rotation.y=Math.PI;
-  rigRoot.rotation.x=t*Math.PI*2;
-  rigRoot.position.y=-.20-.34*tuck;
-  torso.rotation.x=.46*tuck;
-  chest.rotation.x=.32*tuck;
-  lShoulder.rotation.x=-1.15*tuck;
-  rShoulder.rotation.x=-1.15*tuck;
-  lElbow.rotation.x=-.92*tuck;
-  rElbow.rotation.x=-.92*tuck;
-  lHip.rotation.x=.58*tuck;
-  rHip.rotation.x=.58*tuck;
-  lKnee.rotation.x=1.28*tuck;
-  rKnee.rotation.x=1.28*tuck;
+  rigRoot.rotation.x=ease*Math.PI*2;
+  rigRoot.rotation.z=.10*Math.sin(Math.PI*t);
+  rigRoot.position.y=-.13-.28*tuck;
+  torso.rotation.x=.34*tuck;
+  chest.rotation.x=.20*tuck;
+  lShoulder.rotation.x=-.82*tuck;
+  rShoulder.rotation.x=-.82*tuck;
+  lShoulder.rotation.z=.28*tuck;
+  rShoulder.rotation.z=-.28*tuck;
+  lElbow.rotation.x=-.72*tuck;
+  rElbow.rotation.x=-.72*tuck;
+  lHip.rotation.x=.42*tuck;
+  rHip.rotation.x=.42*tuck;
+  lKnee.rotation.x=1.08*tuck;
+  rKnee.rotation.x=1.08*tuck;
 
   if(t>=1){
-    rollAnim.active=false;
-    rollAnim.timer=0;
-    rigRoot.rotation.x=0;
-    rigRoot.position.y=-.05;
-    torso.rotation.y=0;
-    chest.rotation.y=0;
-    pelvis.rotation.y=0;
+    rollAnim.active=false;rollAnim.timer=0;
+    rigRoot.rotation.x=0;rigRoot.rotation.z=0;rigRoot.position.y=-.05;
+    torso.rotation.y=0;chest.rotation.y=0;pelvis.rotation.y=0;
   }
   return true;
 }
@@ -1116,96 +1199,71 @@ scene.onBeforeRenderObservable.add(()=>{
   const stableCrouch=crouching&&parkourState==='normal'&&grounded;
   animateRig(dt,moveAmount,running&&moveAmount>.1,isJumping,isClimbing,stableCrouch);
 
-  // Cinematic full-body combat: anticipation -> impact -> recovery.
+  // Action-game combat pass: clean anticipation, contact and recovery without limb overextension.
   if(combatAnim.timer>0){
     combatAnim.timer=Math.max(0,combatAnim.timer-dt);
     const t=1-combatAnim.timer/combatAnim.duration;
     const side=combatAnim.side;
-    const anticipation=t<.28?Math.sin((t/.28)*Math.PI*.5):1;
-    const impact=t<.28?0:(t<.58?Math.sin(((t-.28)/.30)*Math.PI):Math.max(0,1-(t-.58)/.42));
-    const recovery=t<.58?0:BABYLON.Scalar.Clamp((t-.58)/.42,0,1);
-
-    const attackShoulder=side>0?rShoulder:lShoulder;
-    const otherShoulder=side>0?lShoulder:rShoulder;
-    const attackElbow=side>0?rElbow:lElbow;
+    const wind=t<.30?Math.sin((t/.30)*Math.PI*.5):Math.max(0,1-(t-.30)/.70);
+    const hit=t<.22?0:Math.sin(Math.PI*BABYLON.Scalar.Clamp((t-.22)/.46,0,1));
+    const kick=combatAnim.type==='light'&&combatAnim.combo===3;
 
     if(combatAnim.type==='heavy'){
-      const wind=anticipation;
-      const smash=Math.sin(Math.PI*BABYLON.Scalar.Clamp((t-.24)/.54,0,1));
-      torso.rotation.y=-side*(.58*wind-1.05*smash);
-      chest.rotation.y=-side*(.28*wind-.58*smash);
-      pelvis.rotation.y=side*(.22*wind-.42*smash);
-      torso.rotation.x=.18*wind+.34*smash;
-      attackShoulder.rotation.x=-1.50*wind-.82*smash;
-      attackShoulder.rotation.z=-side*(.90*wind+1.05*smash);
-      attackElbow.rotation.x=-.82*wind+.18*smash;
-      otherShoulder.rotation.x=.62*wind-.28*smash;
-      lHip.rotation.x+=.28*wind;
-      rHip.rotation.x+=.28*wind;
-      lKnee.rotation.x+=.34*wind;
-      rKnee.rotation.x+=.34*wind;
-      rigRoot.position.y-=.10*wind;
-      rigRoot.position.z=.18*smash;
+      torso.rotation.y=side*(-.34*wind+.62*hit);
+      chest.rotation.y=side*(-.16*wind+.28*hit);
+      pelvis.rotation.y=-side*(-.12*wind+.22*hit);
+      torso.rotation.x=.12*wind+.13*hit;
+      const a=side>0?rShoulder:lShoulder;
+      const e=side>0?rElbow:lElbow;
+      const o=side>0?lShoulder:rShoulder;
+      a.rotation.x=-1.02*wind-.70*hit;
+      a.rotation.z=-side*(.62*wind+.72*hit);
+      e.rotation.x=-.62*wind+.16*hit;
+      o.rotation.x=.28*wind;
+      lHip.rotation.x+=.12*wind;rHip.rotation.x+=.12*wind;
+      lKnee.rotation.x+=.16*wind;rKnee.rotation.x+=.16*wind;
+      rigRoot.position.z=.11*hit;
+    }else if(kick){
+      torso.rotation.y=side*(-.20*wind+.42*hit);
+      chest.rotation.y=side*(-.10*wind+.18*hit);
+      pelvis.rotation.y=side*(.14*wind-.32*hit);
+      torso.rotation.x=.10*wind-.05*hit;
+      lShoulder.rotation.x=-.30*wind+.20*hit;
+      rShoulder.rotation.x=-.30*wind+.20*hit;
+      const kh=side>0?rHip:lHip, kk=side>0?rKnee:lKnee;
+      const ph=side>0?lHip:rHip;
+      kh.rotation.x=-.34*wind-.88*hit;
+      kk.rotation.x=.72*wind-.30*hit;
+      ph.rotation.x+=.13*wind;
+      rigRoot.position.z=.13*hit;
     }else{
-      const snap=impact;
-      const finisher=combatAnim.combo===3;
-
-      if(finisher){
-        // Third light input: compact action-game kick using hips, planted leg and arms for balance.
-        torso.rotation.y=side*(-.28*anticipation+.62*snap);
-        chest.rotation.y=side*(-.12*anticipation+.28*snap);
-        pelvis.rotation.y=side*(.18*anticipation-.44*snap);
-        torso.rotation.x=.18*anticipation-.12*snap;
-        lShoulder.rotation.x=-.48*anticipation+.42*snap;
-        rShoulder.rotation.x=-.48*anticipation+.42*snap;
-        lElbow.rotation.x=-.42;
-        rElbow.rotation.x=-.42;
-
-        const kicking=side>0?rHip:lHip;
-        const kickingKnee=side>0?rKnee:lKnee;
-        const planted=side>0?lHip:rHip;
-        kicking.rotation.x=-.46*anticipation-1.18*snap;
-        kickingKnee.rotation.x=.92*anticipation-.58*snap;
-        planted.rotation.x+=.22*anticipation;
-        rigRoot.position.y+=.05*snap;
-        rigRoot.position.z=.18*snap;
-      }else{
-        // Jab / cross alternate sides with visible shoulder, chest and hip drive.
-        torso.rotation.y=side*(-.38*anticipation+.86*snap);
-        chest.rotation.y=side*(-.18*anticipation+.40*snap);
-        pelvis.rotation.y=-side*(-.14*anticipation+.31*snap);
-        torso.rotation.x=.09*anticipation+.15*snap;
-        attackShoulder.rotation.x=-1.18*anticipation-1.18*snap;
-        attackShoulder.rotation.z=-side*(.76*anticipation+1.28*snap);
-        attackElbow.rotation.x=-.62*anticipation+.28*snap;
-        otherShoulder.rotation.x=.38*anticipation-.28*snap;
-        const planted=side>0?lHip:rHip;
-        const driving=side>0?rHip:lHip;
-        planted.rotation.x+=.12*anticipation;
-        driving.rotation.x-=.24*snap;
-        rigRoot.position.z=.14*snap;
-      }
+      const a=side>0?rShoulder:lShoulder;
+      const e=side>0?rElbow:lElbow;
+      const o=side>0?lShoulder:rShoulder;
+      torso.rotation.y=side*(-.24*wind+.54*hit);
+      chest.rotation.y=side*(-.11*wind+.24*hit);
+      pelvis.rotation.y=-side*(-.08*wind+.18*hit);
+      torso.rotation.x=.05*wind+.08*hit;
+      a.rotation.x=-.86*wind-.82*hit;
+      a.rotation.z=-side*(.48*wind+.78*hit);
+      e.rotation.x=-.46*wind+.20*hit;
+      o.rotation.x=.20*wind-.12*hit;
+      rigRoot.position.z=.09*hit;
     }
 
-    if(grounded&&impact>.25){
-      const lunge=combatAnim.type==='heavy'?2.15:(combatAnim.combo===3?2.45:1.75);
-      player.moveWithCollisions(playerForward().scale(lunge*impact*dt));
-      // Small deterministic impact bump; does not change camera yaw/pitch.
-      if(!firstPerson){
-        camera.position.y+=Math.sin(impact*Math.PI)*.018;
-      }
+    if(grounded&&hit>.30){
+      const lunge=combatAnim.type==='heavy'?1.40:(kick?1.55:1.05);
+      player.moveWithCollisions(playerForward().scale(lunge*hit*dt));
     }
-    if(recovery>.75)rigRoot.position.z=BABYLON.Scalar.Lerp(rigRoot.position.z,0,.38);
   }else{
-    torso.rotation.y=dampAngle(torso.rotation.y,0,dt,18);
-    chest.rotation.y=dampAngle(chest.rotation.y,0,dt,18);
-    pelvis.rotation.y=dampAngle(pelvis.rotation.y,0,dt,18);
-    lShoulder.rotation.z=dampAngle(lShoulder.rotation.z,0,dt,18);
-    rShoulder.rotation.z=dampAngle(rShoulder.rotation.z,0,dt,18);
-    lElbow.rotation.z=dampAngle(lElbow.rotation.z,0,dt,18);
-    rElbow.rotation.z=dampAngle(rElbow.rotation.z,0,dt,18);
-    pelvis.rotation.y=dampAngle(pelvis.rotation.y,0,dt,18);
-    rigRoot.position.z=BABYLON.Scalar.Lerp(rigRoot.position.z,0,1-Math.exp(-18*dt));
+    torso.rotation.y=dampAngle(torso.rotation.y,0,dt,16);
+    chest.rotation.y=dampAngle(chest.rotation.y,0,dt,16);
+    pelvis.rotation.y=dampAngle(pelvis.rotation.y,0,dt,16);
+    lShoulder.rotation.z=dampAngle(lShoulder.rotation.z,0,dt,16);
+    rShoulder.rotation.z=dampAngle(rShoulder.rotation.z,0,dt,16);
+    lElbow.rotation.z=dampAngle(lElbow.rotation.z,0,dt,16);
+    rElbow.rotation.z=dampAngle(rElbow.rotation.z,0,dt,16);
+    rigRoot.position.z=BABYLON.Scalar.Lerp(rigRoot.position.z,0,1-Math.exp(-16*dt));
   }
 
   // Extra readability for landing and mantle.
