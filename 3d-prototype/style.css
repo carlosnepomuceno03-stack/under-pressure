@@ -12,3 +12,35 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090b10;fon
 #objective{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12);font-size:11px;color:#f4f0e8}
 #objective span{font-weight:900;color:#41e7ff;margin-right:6px;letter-spacing:.08em}
 #buildTag{margin-top:5px;font-size:10px;color:#8f98a8;letter-spacing:.08em}
+
+#statusRow{display:flex;align-items:center;gap:10px;margin-top:8px}
+#alertWrap{display:flex;align-items:center;gap:7px;font-size:9px;font-weight:900;letter-spacing:.07em;color:#8df6d0}
+#alertWrap i{display:block;width:110px;height:6px;background:rgba(255,255,255,.10);border-radius:20px;overflow:hidden}
+#alertBar{display:block;width:0;height:100%;background:#5ff0bf;transition:width .08s linear}
+#alertWrap[data-state="SUSPICIOUS"]{color:#ffd34e}
+#alertWrap[data-state="SUSPICIOUS"] #alertBar{background:#ffd34e}
+#alertWrap[data-state="ALERT"]{color:#ff4c61}
+#alertWrap[data-state="ALERT"] #alertBar{background:#ff4c61}
+#collectibles{font-size:9px;color:#d7deea;font-weight:900;letter-spacing:.06em}
+#interactPrompt{position:fixed;z-index:30;left:50%;bottom:12%;transform:translateX(-50%) translateY(10px);opacity:0;pointer-events:none;background:rgba(5,8,14,.88);border:1px solid rgba(65,231,255,.5);color:#fff;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:900;letter-spacing:.08em;transition:.15s}
+#interactPrompt.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast{position:fixed;z-index:40;top:20%;left:50%;transform:translate(-50%,-8px);opacity:0;color:#fff;background:rgba(8,10,16,.9);border:1px solid rgba(255,255,255,.16);padding:12px 18px;border-radius:10px;font-weight:900;letter-spacing:.08em;transition:.2s;pointer-events:none}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#missionComplete{position:fixed;z-index:55;inset:0;display:none;align-items:center;justify-content:center;background:rgba(4,6,12,.48);pointer-events:none}
+#missionComplete.show{display:flex}
+#missionComplete>div{padding:24px 32px;border-radius:16px;background:rgba(8,10,16,.93);border:1px solid rgba(65,231,255,.45);text-align:center}
+#missionComplete strong{display:block;font-size:26px;color:#ffd34e;letter-spacing:.08em}
+#missionComplete span{display:block;margin-top:6px;color:#cfd7e6;font-size:12px}
+#graffitiMode{position:fixed;z-index:60;inset:0;display:none;align-items:center;justify-content:center;background:rgba(4,5,10,.88)}
+#graffitiMode.show{display:flex}
+.paintPanel{width:min(900px,92vw);background:#0b0e15;border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:14px;box-shadow:0 18px 80px rgba(0,0,0,.45)}
+.paintTop{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:#fff}
+.paintTop strong{color:#41e7ff;letter-spacing:.1em}.paintTop span{font-size:11px;color:#aeb8c9}
+#graffitiCanvas{width:100%;aspect-ratio:16/9;background:#b7afa5;display:block;border-radius:8px;touch-action:none;cursor:crosshair}
+.paintTools{display:flex;align-items:center;gap:8px;margin-top:10px}
+.paintTools button{border:0;border-radius:8px;padding:10px 14px;background:#232938;color:#fff;font-weight:900;cursor:pointer}
+.paintTools .paint{width:34px;height:34px;padding:0;border:2px solid transparent;border-radius:50%}
+.paintTools .paint.active{border-color:#fff;transform:scale(1.08)}
+.paint.cyan{background:#35d7df}.paint.pink{background:#ff4c8b}.paint.yellow{background:#ffd34e}.paint.black{background:#111217}.paint.white{background:#f5f2ea}
+#finishGraffiti{margin-left:auto!important;background:#ffd34e!important;color:#111!important}
+@media(max-width:700px){#statusRow{align-items:flex-start;flex-direction:column}.paintTools{flex-wrap:wrap}}
