@@ -1,201 +1,102 @@
 (()=>{
   const PATH='./3d-prototype/assets/characters/player/';
-  const FILES=['player_meshy.glb','player_main.glb'];
+  const FILE='player_meshy.glb';
 
-  // Exact source bounds of the Meshy file the user uploaded.
-  const MESHY_SIZE={x:.807953,y:1.898151,z:.935003};
-  const MESHY_CENTER={x:-.0036635,y:-.0018715,z:-.0025985};
-  const MESHY_TARGET_HEIGHT=2.35;
+  // Real source bounds from the uploaded Meshy GLB.
+  const SRC_MIN_Y=-0.9509469866752625;
+  const SRC_HEIGHT=1.8981509804725647;
+  const TARGET_HEIGHT=2.28;
+  const SCALE=TARGET_HEIGHT/SRC_HEIGHT;
 
-  function waitForGame(){
-    if(window.UP3D?.scene&&window.BABYLON?.SceneLoader){
-      setTimeout(init,350);
+  function boot(){
+    if(!window.UP3D?.scene||!window.BABYLON?.SceneLoader){
+      setTimeout(boot,50);
       return;
     }
-    setTimeout(waitForGame,50);
+    setTimeout(loadMeshy,250);
   }
 
-  function showFallback(oldRig){
-    oldRig?.setEnabled(true);
-    document.body.classList.remove('glb-player-loading','glb-player-loaded');
-    document.body.classList.add('glb-player-fallback');
-  }
-
-  async function init(){
+  async function loadMeshy(){
     const G=window.UP3D;
     const scene=G.scene;
     const player=G.player;
     const oldRig=scene.getTransformNodeByName('rigRoot');
-    const beforeLights=new Set(scene.lights);
 
-    // No flash of the old blocky character while the real model is loading.
+    // Avoid showing the blocky fallback while the real model arrives.
     oldRig?.setEnabled(false);
     document.body.classList.add('glb-player-loading');
 
     try{
-      let result=null;
-      let loadedFile=null;
-      let lastError=null;
+      const result=await BABYLON.SceneLoader.ImportMeshAsync('',PATH,FILE,scene);
+      const visual=(result.meshes||[])
+        .filter(m=>m && m.name!=='__root__' && (m.getTotalVertices?.()||0)>1000)
+        .sort((a,b)=>(b.getTotalVertices?.()||0)-(a.getTotalVertices?.()||0))[0];
 
-      for(const file of FILES){
-        try{
-          result=await BABYLON.SceneLoader.ImportMeshAsync('',PATH,file,scene);
-          loadedFile=file;
-          break;
-        }catch(err){
-          lastError=err;
-        }
-      }
-      if(!result)throw lastError||new Error('No player GLB available');
+      if(!visual)throw new Error('player_meshy geometry not found');
 
-      const meshes=(result.meshes||[]).filter(m=>m&&!m.isDisposed?.());
-      const transforms=result.transformNodes||[];
+      // Detach from Babylon's generated import root and attach DIRECTLY to gameplay collider.
+      visual.parent=null;
+      visual.rotationQuaternion=null;
+      visual.position.set(0,0,0);
+      visual.rotation.set(0,Math.PI,0);
+      visual.scaling.setAll(SCALE);
 
-      for(const light of [...scene.lights]){
-        if(!beforeLights.has(light)&&/^Area/.test(light.name))light.dispose();
-      }
+      // Put feet at the same visual baseline used by the old procedural character.
+      const desiredFeetY=-1.48;
+      visual.position.y=desiredFeetY-(SRC_MIN_Y*SCALE);
 
-      for(const mesh of meshes){
-        mesh.checkCollisions=false;
-        mesh.isPickable=false;
-        mesh.setEnabled(true);
-        mesh.isVisible=true;
-        mesh.visibility=1;
-        mesh.alwaysSelectAsActiveMesh=true;
-        if(mesh.material){
-          mesh.material.alpha=1;
-          mesh.material.backFaceCulling=false;
-        }
+      visual.parent=player;
+      visual.setEnabled(true);
+      visual.isVisible=true;
+      visual.visibility=1;
+      visual.checkCollisions=false;
+      visual.isPickable=false;
+      visual.alwaysSelectAsActiveMesh=true;
+
+      if(visual.material){
+        visual.material.alpha=1;
+        visual.material.backFaceCulling=false;
       }
 
-      const modelRoot=new BABYLON.TransformNode('UP_Player_ModelRoot',scene);
-      modelRoot.parent=player;
-      modelRoot.position.set(0,0,0);
-      modelRoot.rotationQuaternion=null;
-      modelRoot.rotation.set(0,Math.PI,0);
-      modelRoot.scaling.setAll(1);
-
-      if(loadedFile==='player_meshy.glb'){
-        // Meshy export is a single static mesh. Attach the real geometry directly
-        // to the player collider and use known source dimensions. This avoids
-        // importer/root-node bounding quirks that were making the model vanish.
-        const visual=meshes
-          .filter(m=>m.name!=='__root__'&&(m.getTotalVertices?.()||0)>0)
-          .sort((a,b)=>(b.getTotalVertices?.()||0)-(a.getTotalVertices?.()||0))[0];
-
-        if(!visual)throw new Error('Meshy geometry mesh not found');
-
-        // Detach the geometry from Babylon's generated __root__.
-        visual.parent=modelRoot;
-        visual.position.set(
-          -MESHY_CENTER.x,
-          .28-MESHY_CENTER.y,
-          -MESHY_CENTER.z
-        );
-        visual.rotationQuaternion=null;
-        visual.rotation.set(0,0,0);
-
-        const scale=MESHY_TARGET_HEIGHT/MESHY_SIZE.y;
-        visual.scaling.setAll(scale);
-
-        // Disable importer helper/root nodes, never the geometry itself.
-        for(const node of [...meshes,...transforms]){
-          if(node===visual||node===modelRoot)continue;
-          if(node.name==='__root__'||node.name==='PreviewFloor'||node.name==='DeliveryCamera'){
-            node.setEnabled?.(false);
-          }
-        }
-
-        visual.computeWorldMatrix(true);
-        const bi=visual.getBoundingInfo();
-        const bb=bi.boundingBox;
-        const worldHeight=bb.maximumWorld.y-bb.minimumWorld.y;
-
-        if(!Number.isFinite(worldHeight)||worldHeight<1||worldHeight>4){
-          throw new Error('Meshy player fitted to invalid height: '+worldHeight);
-        }
-
-        window.UP_MODEL={
-          loaded:true,
-          file:loadedFile,
-          rigged:false,
-          root:modelRoot,
-          visual,
-          scale,
-          worldHeight
-        };
-
-        document.body.classList.remove('glb-player-loading','glb-player-fallback');
-        document.body.classList.add('glb-player-loaded');
-        console.info('[Under Pressure] Meshy visual active',{scale,worldHeight});
-        return;
-      }
-
-      // Rigged fallback model pipeline.
-      const importedSet=new Set([...meshes,...transforms]);
-      const topNodes=[];
-      for(const node of [...transforms,...meshes]){
-        if(node===modelRoot)continue;
-        const p=node.parent;
-        if(!p||!importedSet.has(p)){
-          if(!topNodes.includes(node))topNodes.push(node);
+      // Kill importer helpers only AFTER the real geometry has been detached.
+      for(const node of [...(result.meshes||[]),...(result.transformNodes||[])]){
+        if(node===visual)continue;
+        if(node.name==='__root__'||node.name==='PreviewFloor'||node.name==='DeliveryCamera'){
+          node.setEnabled?.(false);
         }
       }
-      for(const node of topNodes)node.parent=modelRoot;
 
-      const groups=result.animationGroups||[];
-      const byName=(needle)=>groups.find(g=>g.name.toLowerCase().includes(needle.toLowerCase()));
-      const clips={
-        idle:byName('Idle'),run:byName('Run'),crouch:byName('Crouch'),punch:byName('Punch'),
-        rollForward:byName('RollForward'),rollBackward:byName('RollBackward'),
-        rollLeft:byName('RollLeft'),rollRight:byName('RollRight')
+      visual.computeWorldMatrix(true);
+      visual.refreshBoundingInfo?.();
+      const bb=visual.getBoundingInfo().boundingBox;
+      const h=bb.maximumWorld.y-bb.minimumWorld.y;
+      const center=bb.centerWorld;
+      const dist=BABYLON.Vector3.Distance(center,player.getAbsolutePosition());
+
+      if(!Number.isFinite(h)||h<1.5||h>3.2||!Number.isFinite(dist)||dist>4){
+        throw new Error('Meshy transform invalid: h='+h+' dist='+dist);
+      }
+
+      window.UP_MODEL={
+        loaded:true,
+        file:FILE,
+        rigged:false,
+        visual,
+        scale:SCALE,
+        worldHeight:h
       };
 
-      let current=null;
-      let actionUntil=0;
-      function play(group,loop=true,speed=1){
-        if(!group)return;
-        if(current===group&&group.isPlaying)return;
-        for(const g of groups)if(g!==group&&g.isPlaying)g.stop();
-        current=group;
-        group.start(loop,speed,group.from,group.to,false);
-      }
-      play(clips.idle,true,1);
-
-      const originalAttack=G.playAttack?.bind(G);
-      G.playAttack=(type='light')=>{
-        originalAttack?.(type);
-        actionUntil=performance.now()+(type==='heavy'?720:460);
-        play(clips.punch,false,type==='heavy'?.82:1.12);
-      };
-
-      const originalRoll=G.startRoll?.bind(G);
-      G.startRoll=(direction)=>{
-        const ok=originalRoll?.(direction);
-        if(!ok)return false;
-        actionUntil=performance.now()+650;
-        play(clips.rollForward,false,1.08);
-        return true;
-      };
-
-      scene.onBeforeRenderObservable.add(()=>{
-        if(performance.now()<actionUntil)return;
-        const st=G.getStealthState?.()||{speed:0,crouching:false,running:false};
-        if(G.isRolling?.())return;
-        if(st.crouching)play(clips.crouch,true,st.speed>.25?1.15:.82);
-        else if(st.speed>.35)play(clips.run,true,st.running?1.12:.82);
-        else play(clips.idle,true,1);
-      });
-
-      window.UP_MODEL={loaded:true,file:loadedFile,rigged:true,root:modelRoot,animationGroups:groups,clips};
       document.body.classList.remove('glb-player-loading','glb-player-fallback');
       document.body.classList.add('glb-player-loaded');
+      console.info('[Under Pressure] Meshy player visible',{height:h,scale:SCALE,dist});
 
     }catch(err){
-      console.warn('[Under Pressure] player model failed; fallback restored.',err);
-      showFallback(oldRig);
+      console.error('[Under Pressure] Meshy load failed',err);
+      oldRig?.setEnabled(true);
+      document.body.classList.remove('glb-player-loading');
+      document.body.classList.add('glb-player-fallback');
     }
   }
 
-  waitForGame();
+  boot();
 })();
