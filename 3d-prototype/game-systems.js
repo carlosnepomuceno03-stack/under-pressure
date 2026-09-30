@@ -232,6 +232,9 @@
     if(!g||g.down)return;
     g.hp=Math.max(0,g.hp-damage);
     g.stun=Math.max(g.stun,stun);
+    const oldTilt=g.root.rotation.x;
+    g.root.rotation.x=.20;
+    setTimeout(()=>{if(!g.down)g.root.rotation.x=oldTilt;},140);
     STATE.combo++;
     STATE.comboTimer=1.3;
     STATE.combatTarget=g;
@@ -250,13 +253,32 @@
   }
   function doAttack(type){
     if(STATE.attacking||STATE.dodging||STATE.graffitiOpen||STATE.caught)return;
-    const g=nearestGuard(type==='heavy'?2.45:2.1);
-    if(!g)return;
     STATE.attacking=true;
-    const dmg=type==='heavy'?34:20;
-    const stun=type==='heavy'?.55:.25;
-    hitGuard(g,dmg,stun);
-    setTimeout(()=>STATE.attacking=false,type==='heavy'?420:230);
+    G.playAttack?.(type);
+
+    const range=type==='heavy'?3.0:2.65;
+    const g=nearestGuard(range);
+    if(g){
+      // Mild auto-facing makes close combat readable without turning it into lock-on.
+      const toGuard=g.root.position.subtract(player.position);toGuard.y=0;
+      const dist=toGuard.length();
+      if(dist>.001){
+        toGuard.normalize();
+        const forward=G.getForward?.()||toGuard;
+        const facing=BABYLON.Vector3.Dot(forward,toGuard);
+        if(facing>.05){
+          const dmg=type==='heavy'?34:20;
+          const stun=type==='heavy'?.55:.25;
+          // Delay damage to match the visible swing impact.
+          setTimeout(()=>{
+            if(!g.down&&BABYLON.Vector3.Distance(player.position,g.root.position)<=range+.35){
+              hitGuard(g,dmg,stun);
+            }
+          },type==='heavy'?210:115);
+        }
+      }
+    }
+    setTimeout(()=>STATE.attacking=false,type==='heavy'?470:290);
   }
   function doDodge(){
     if(STATE.dodging||STATE.graffitiOpen||STATE.caught)return;
@@ -298,10 +320,11 @@
     G.setGameplayLocked(false);
     player.position.set(-16,1.2,27);
     G.resetMotion();
+    setHp(100);
     guards[0].root.position.copyFrom(guards[0].points[0]);
     guards[1].root.position.copyFrom(guards[1].points[0]);
     guards[2].root.position.copyFrom(guards[2].points[0]);
-    toast('VOLTOU AO CHECKPOINT',1500);
+    toast('RECOMEÇANDO',1200);
   }
   function catchPlayer(){
     if(STATE.caught||STATE.missionComplete)return;
@@ -656,6 +679,8 @@
       ui.combat?.classList.add('show');
     }else if(STATE.alertState!=='ALERT'){
       ui.combat?.classList.remove('show');
+    }else{
+      ui.combat?.classList.add('show');
     }
     updateHUD();
   });
