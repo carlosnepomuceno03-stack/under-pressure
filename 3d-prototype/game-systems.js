@@ -72,10 +72,13 @@
       const b=document.createElement('button');
       b.className='artCard'+(STATE.selectedArt===art.id?' active':'');
       b.dataset.art=art.id;
-      b.innerHTML='<strong>'+art.name+'</strong><span>'+art.type+' • DIF '+art.difficulty+'</span><small>'+art.desc+'</small>';
+      b.innerHTML='<div class="artThumb '+art.id+'"></div><strong>'+art.name+'</strong><span>'+art.type+' • DIF '+art.difficulty+'</span><small>'+art.desc+'</small>';
       b.addEventListener('click',()=>{
         STATE.selectedArt=art.id;
+        paintInitialized=false;
+        coveredCells.clear();
         renderGallery();
+        initPaintCanvas();
         toast(art.name+' SELECIONADO',900);
       });
       ui.galleryList.appendChild(b);
@@ -439,17 +442,43 @@
     guideCtx.save();
     guideCtx.textAlign='center';
     guideCtx.textBaseline='middle';
-    guideCtx.font='900 210px Arial Black, Arial';
     guideCtx.lineJoin='round';
-    guideCtx.lineWidth=28;
-    guideCtx.strokeStyle='rgba(20,20,24,.72)';
-    guideCtx.strokeText('TDG',512,292);
-    guideCtx.lineWidth=8;
-    guideCtx.strokeStyle='rgba(255,255,255,.75)';
-    guideCtx.strokeText('TDG',512,292);
+
+    const art=ART_CATALOG.find(a=>a.id===STATE.selectedArt)||ART_CATALOG[0];
+    const presets={
+      nepo_throw:{text:'NEPO',size:220,slant:-.12},
+      gate_piece:{text:'26',size:260,slant:-.04},
+      alien_jam:{text:'ALIEN',size:190,slant:.05},
+      crew_wall:{text:'TDG',size:240,slant:-.08},
+      blackbook:{text:'WILD',size:210,slant:.10}
+    };
+    const p=presets[art.id]||presets.nepo_throw;
+
+    guideCtx.translate(512,292);
+    guideCtx.transform(1,0,p.slant,1,0,0);
+    guideCtx.font='900 '+p.size+'px Arial Black, Arial';
+    guideCtx.lineWidth=34;
+    guideCtx.strokeStyle='rgba(18,18,22,.72)';
+    guideCtx.strokeText(p.text,0,0);
+    guideCtx.lineWidth=9;
+    guideCtx.strokeStyle='rgba(255,255,255,.78)';
+    guideCtx.strokeText(p.text,0,0);
+
+    // Secondary flourishes to stop every choice feeling identical.
+    guideCtx.lineWidth=14;
+    guideCtx.strokeStyle='rgba(18,18,22,.50)';
+    if(art.id==='alien_jam'){
+      guideCtx.beginPath();guideCtx.arc(265,-40,74,0,Math.PI*2);guideCtx.stroke();
+      guideCtx.beginPath();guideCtx.moveTo(225,-10);guideCtx.lineTo(305,45);guideCtx.stroke();
+    }else if(art.id==='blackbook'){
+      for(const x of [-330,330]){guideCtx.beginPath();guideCtx.moveTo(x,-80);guideCtx.lineTo(x+(x<0?-85:85),0);guideCtx.lineTo(x,80);guideCtx.stroke();}
+    }else if(art.id==='gate_piece'){
+      guideCtx.beginPath();guideCtx.moveTo(-320,100);guideCtx.lineTo(0,155);guideCtx.lineTo(320,100);guideCtx.stroke();
+    }else if(art.id==='crew_wall'){
+      guideCtx.beginPath();guideCtx.arc(0,0,250,Math.PI*.12,Math.PI*.88);guideCtx.stroke();
+    }
     guideCtx.restore();
 
-    // Build a coarse target mask for coverage scoring.
     targetCells.clear();
     const img=guideCtx.getImageData(0,0,1024,576).data;
     for(let gy=0;gy<GRID_Y;gy++){
@@ -500,11 +529,13 @@
     ui.paint.width=1024;ui.paint.height=576;
     paintCtx=ui.paint.getContext('2d');
     if(!paintInitialized){
+      coveredCells.clear();
+      pressure=100;ink=100;coverage=0;rep=0;drips=0;
+      paintCtx.clearRect(0,0,1024,576);
       paintCtx.fillStyle='#b7afa5';paintCtx.fillRect(0,0,1024,576);
       paintCtx.fillStyle='rgba(65,54,49,.16)';
       for(let i=0;i<90;i++)paintCtx.fillRect((i*97)%1024,(i*53)%576,12+(i%5)*9,3+(i%3)*4);
       paintInitialized=true;
-      pressure=100;ink=100;coverage=0;rep=0;drips=0;coveredCells.clear();
     }
     paintCtx.lineCap='round';paintCtx.lineJoin='round';
     drawGuide();refreshUnlocks();updateGraffitiHUD();
@@ -682,7 +713,7 @@
         f.mesh.setEnabled(false);
         STATE.founders.add(f.name);
         toast('FUNDADOR TDG • '+f.name,1500);
-        if(STATE.founders.size===4)toast('4 FUNDADORES ENCONTRADOS • MURAL TDG LIBERADO',2200);
+        if(STATE.founders.size===4)toast('4 FUNDADORES TDG ENCONTRADOS',2200);
       }
     }
   }
