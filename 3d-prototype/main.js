@@ -90,33 +90,51 @@ const head=BABYLON.MeshBuilder.CreateSphere('head',{diameter:.7},scene);
 head.parent=player;head.position.y=.75;head.material=playerMat;
 const pack=box('pack',.7,.85,.32,0,0,0,accent);pack.parent=player;pack.position.set(0,.15,.46);pack.checkCollisions=false;
 
-// camera
-const camera=new BABYLON.ArcRotateCamera('cam',Math.PI/2,1.12,8,new BABYLON.Vector3(0,1.3,0),scene);
-camera.lowerRadiusLimit=5.5;camera.upperRadiusLimit=10;
-camera.lowerBetaLimit=.7;camera.upperBetaLimit=1.35;
-camera.lockedTarget=player;
+// camera — manual third-person controller (no ArcRotate input quirks)
+const camera=new BABYLON.FreeCamera('cam',new BABYLON.Vector3(0,3,-8),scene);
+camera.minZ=.1;
 
-// PC camera without click/drag.
-// Cursor position gives a stable orbit offset instead of continuous spinning.
-let mouseNX=0,mouseNY=0;
-let mouseInside=false;
-canvas.addEventListener('mouseenter',()=>mouseInside=true);
-canvas.addEventListener('mouseleave',()=>{mouseInside=false;mouseNX=0;mouseNY=0;});
-canvas.addEventListener('mousemove',e=>{
-  const r=canvas.getBoundingClientRect();
-  mouseNX=BABYLON.Scalar.Clamp(((e.clientX-r.left)/Math.max(1,r.width))*2-1,-1,1);
-  mouseNY=BABYLON.Scalar.Clamp(((e.clientY-r.top)/Math.max(1,r.height))*2-1,-1,1);
+let camYaw=0;
+let camPitch=.12;
+let camDistance=7.2;
+const CAM_SENS_X=.0026;
+const CAM_SENS_Y=.0022;
+
+function tryLockPointer(){
+  if(document.pointerLockElement!==canvas) canvas.requestPointerLock?.();
+}
+canvas.addEventListener('click',tryLockPointer);
+
+document.addEventListener('mousemove',e=>{
+  if(document.pointerLockElement!==canvas)return;
+  camYaw+=e.movementX*CAM_SENS_X;
+  camPitch=BABYLON.Scalar.Clamp(camPitch-e.movementY*CAM_SENS_Y,-.35,.55);
 });
+
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
-  camera.radius=BABYLON.Scalar.Clamp(camera.radius+Math.sign(e.deltaY)*.55,5.5,10);
+  camDistance=BABYLON.Scalar.Clamp(camDistance+Math.sign(e.deltaY)*.5,5.2,9.5);
 },{passive:false});
+
+function updateCamera(dt){
+  const target=player.position.add(new BABYLON.Vector3(0,.85,0));
+  const cp=Math.cos(camPitch);
+  const desired=new BABYLON.Vector3(
+    target.x-Math.sin(camYaw)*cp*camDistance,
+    target.y+1.35-Math.sin(camPitch)*camDistance,
+    target.z-Math.cos(camYaw)*cp*camDistance
+  );
+  const t=1-Math.pow(.0007,dt);
+  camera.position=BABYLON.Vector3.Lerp(camera.position,desired,t);
+  camera.setTarget(target);
+}
 
 // input
 const keys={};
 let spacePressedAt=0;
 let spaceWasDown=false;
 window.addEventListener('keydown',e=>{
+  if(document.pointerLockElement!==canvas) tryLockPointer();
   if(e.code==='Space'&&!keys.Space)spacePressedAt=performance.now();
   keys[e.code]=true;
 });
@@ -131,10 +149,10 @@ let climbing=false;
 let parkourCooldown=0;
 
 function forwardFlat(){
-  const f=camera.getForwardRay().direction.clone();f.y=0;return f.normalize();
+  return new BABYLON.Vector3(Math.sin(camYaw),0,Math.cos(camYaw)).normalize();
 }
 function rightFlat(){
-  const f=forwardFlat();return new BABYLON.Vector3(f.z,0,-f.x);
+  return new BABYLON.Vector3(Math.cos(camYaw),0,-Math.sin(camYaw)).normalize();
 }
 function playerForward(){
   return new BABYLON.Vector3(Math.sin(player.rotation.y),0,Math.cos(player.rotation.y)).normalize();
@@ -174,16 +192,7 @@ scene.onBeforeRenderObservable.add(()=>{
   const dt=Math.min(.033,engine.getDeltaTime()/1000);
   parkourCooldown=Math.max(0,parkourCooldown-dt);
 
-  // Stable third-person camera: no drift, no endless spin at screen edges.
-  // Center cursor = camera behind player; move cursor = temporary orbit around player.
-  const yawBehind=player.rotation.y+Math.PI;
-  const desiredAlpha=yawBehind-(mouseInside?mouseNX*.95:0);
-  const desiredBeta=BABYLON.Scalar.Clamp(1.04+(mouseInside?mouseNY*.20:0),.78,1.26);
-
-  // shortest-angle interpolation for alpha
-  let da=((desiredAlpha-camera.alpha+Math.PI)%(Math.PI*2)+Math.PI)%(Math.PI*2)-Math.PI;
-  camera.alpha+=da*(1-Math.pow(.002,dt));
-  camera.beta=BABYLON.Scalar.Lerp(camera.beta,desiredBeta,1-Math.pow(.002,dt));
+  updateCamera(dt);
 
   const f=forwardFlat(),r=rightFlat();
   let move=BABYLON.Vector3.Zero();
