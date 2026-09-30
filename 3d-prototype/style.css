@@ -44,3 +44,11 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090b10;fon
 .paint.cyan{background:#35d7df}.paint.pink{background:#ff4c8b}.paint.yellow{background:#ffd34e}.paint.black{background:#111217}.paint.white{background:#f5f2ea}
 #finishGraffiti{margin-left:auto!important;background:#ffd34e!important;color:#111!important}
 @media(max-width:700px){#statusRow{align-items:flex-start;flex-direction:column}.paintTools{flex-wrap:wrap}}
+
+#combatHud{position:fixed;z-index:20;right:16px;bottom:18px;width:220px;padding:10px 12px;border-radius:12px;background:rgba(7,9,14,.78);border:1px solid rgba(255,255,255,.12);opacity:0;transition:.15s;pointer-events:none}
+#combatHud.show{opacity:1}
+.combatLine{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:9px;font-weight:900;color:#dce5ef}
+.combatLine i{display:block;flex:1;height:7px;background:#222936;border-radius:20px;overflow:hidden}
+.combatLine b{display:block;height:100%;width:100%;background:#5ff0bf}
+.combatLine.enemy b{background:#ff4c61}
+#comboText{text-align:right;font-size:11px;font-weight:900;color:#ffd34e;letter-spacing:.08em;margin-top:5px}
