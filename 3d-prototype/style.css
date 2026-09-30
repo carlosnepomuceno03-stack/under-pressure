@@ -96,3 +96,40 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090b10;fon
 .artThumb.alien_jam{background:linear-gradient(135deg,#f0bd29,#893c9c 58%,#42a64d)}
 .artThumb.crew_wall{background:linear-gradient(135deg,#164f83,#0b7a9c 55%,#dd5b86)}
 .artThumb.blackbook{background:linear-gradient(135deg,#eee,#aaa 60%,#6f52b7)}
+
+/* V35 — iPhone / touch controls */
+#mobileControls{display:none}
+@media (pointer:coarse),(max-width:900px){
+  body.touch-game #mobileControls{display:block;position:fixed;inset:0;z-index:25;pointer-events:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  body.touch-game #hud{top:max(6px,env(safe-area-inset-top));left:max(6px,env(safe-area-inset-left));right:auto;max-width:min(58vw,430px);padding:7px 9px;background:rgba(5,8,14,.56)}
+  body.touch-game #hud .hint,body.touch-game #mouseHint{display:none}
+  body.touch-game #objective{font-size:9px;margin-top:5px;padding-top:5px}
+  body.touch-game #statusRow{gap:6px;flex-direction:row;flex-wrap:wrap}
+  body.touch-game #alertWrap i{width:68px}
+  body.touch-game #buildTag{font-size:8px}
+  body.touch-game #combatHud{right:max(8px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top));bottom:auto;width:145px;padding:7px 9px}
+  .touchZone{position:absolute;pointer-events:auto;touch-action:none}
+  #movePad{left:0;bottom:0;width:46vw;height:53vh}
+  #lookPad{right:0;top:12vh;width:58vw;height:58vh;z-index:1}
+  .stickBase{position:absolute;left:max(24px,calc(env(safe-area-inset-left) + 16px));bottom:max(24px,calc(env(safe-area-inset-bottom) + 18px));width:126px;height:126px;border-radius:50%;border:2px solid rgba(255,255,255,.18);background:rgba(8,12,20,.34);box-shadow:inset 0 0 0 18px rgba(255,255,255,.025)}
+  #moveKnob{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px;border-radius:50%;background:rgba(65,231,255,.34);border:2px solid rgba(65,231,255,.8);box-shadow:0 4px 18px rgba(0,0,0,.3)}
+  #mobileActions{position:absolute;right:max(12px,calc(env(safe-area-inset-right) + 8px));bottom:max(14px,calc(env(safe-area-inset-bottom) + 8px));width:220px;height:205px;pointer-events:none;z-index:4}
+  .mBtn{pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;border:1px solid rgba(255,255,255,.22);background:rgba(10,14,22,.64);color:#fff;font-weight:900;font-size:9px;letter-spacing:.04em;backdrop-filter:blur(4px);box-shadow:0 5px 16px rgba(0,0,0,.28)}
+  .mBtn:active,.mBtn.pressed{transform:scale(.92);background:rgba(65,231,255,.44)}
+  .mBtn.action{position:absolute;width:68px;height:68px;border-radius:50%}
+  #mJump{right:0;bottom:42px;border-color:rgba(255,211,78,.8);color:#ffd34e}
+  #mDodge{right:72px;bottom:0;border-color:rgba(65,231,255,.65)}
+  #mAttack{right:74px;bottom:76px;border-color:rgba(255,76,139,.75)}
+  #mHeavy{right:146px;bottom:85px;width:58px;height:58px;font-size:8px;border-color:rgba(255,110,80,.7)}
+  #mInteract{right:146px;bottom:20px;width:56px;height:56px;font-size:8px;border-color:rgba(141,246,208,.72)}
+  #mobileTopActions{position:absolute;right:max(12px,calc(env(safe-area-inset-right) + 8px));top:max(72px,calc(env(safe-area-inset-top) + 62px));display:flex;gap:7px;pointer-events:none;z-index:5}
+  .mBtn.small{pointer-events:auto;border-radius:9px;padding:9px 10px}
+  #mCrouch.active{background:rgba(95,240,191,.35);border-color:#5ff0bf;color:#bfffe9}
+  body.touch-game #viewToggle{display:none}
+  body.touch-game #interactPrompt{bottom:30%;font-size:10px}
+}
+@media (pointer:coarse) and (orientation:portrait){
+  body.touch-game:before{content:"MELHOR EM PAISAGEM";position:fixed;z-index:100;left:50%;top:10px;transform:translateX(-50%);background:#0b0e15;color:#ffd34e;border:1px solid rgba(255,211,78,.45);padding:6px 10px;border-radius:8px;font-size:9px;font-weight:900;pointer-events:none}
+  body.touch-game #mobileActions{transform:scale(.86);transform-origin:bottom right}
+  body.touch-game .stickBase{transform:scale(.86);transform-origin:bottom left}
+}
