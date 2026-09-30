@@ -357,6 +357,14 @@ class Custom extends Phaser.Scene{
     const back=btn(this,1000,875,180,54,'VOLTAR',MID,'#fff',18);back.on('pointerdown',()=>this.scene.start('Menu'));
     const go=btn(this,1320,875,320,54,this.next==='Map'?'SALVAR E JOGAR':'SALVAR',YELLOW,'#111',19);
     go.on('pointerdown',()=>{
+      // Mobile-safe transition: recoloring is already applied when visual options change.
+      // Rebuilding 20+ large canvas textures again here can lock Safari/iPhone.
+      if(this._startingGame)return;
+      this._startingGame=true;
+      go.bg.disableInteractive();
+      go.tx.setText(IS_TOUCH?'CARREGANDO...':'ABRINDO...');
+      try{document.activeElement?.blur?.()}catch(e){}
+
       // Finishing the campaign unlocks the rare mask. Replaying with it equipped
       // unlocks the neon palette and starts a fresh run while keeping inventory.
       if(this.next==='Map'&&P.phase3Complete&&P.rareMaskUnlocked&&P.rareMaskEquipped){
@@ -365,7 +373,13 @@ class Custom extends Phaser.Scene{
         P.missionComplete=false;P.phase=1;
         P.phase1Art=null;P.phase2Art=null;P.phase3Art=null;
       }
-      SAVE.set(P);this.scene.get('Boot').buildLiveTextures();this.scene.start(this.next)
+      SAVE.set(P);
+
+      // Yield one frame on touch devices so iOS can close the keyboard / release DOM focus
+      // before constructing the much larger map scene.
+      this.time.delayedCall(IS_TOUCH?90:10,()=>{
+        this.scene.start(this.next);
+      });
     });
     this.input.keyboard.on('keydown-ESC',()=>this.scene.start('Menu'));
   }
