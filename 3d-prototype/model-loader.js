@@ -42,26 +42,23 @@
       visual.scaling.setAll(SCALE);
       visual.rotation.set(0,0,0);
 
-      // Meshy exported this material as fully metallic. In our dark night scene that
-      // makes the character nearly black. Keep the embedded texture but turn it into
-      // a matte game material that responds to our lights.
+      // Force a predictable textured StandardMaterial. The Meshy PBR export is
+      // overly metallic/dark in this prototype lighting.
       if(visual.material){
-        const mat=visual.material;
-        mat.alpha=1;
-        mat.backFaceCulling=false;
-
-        if('metallic' in mat) mat.metallic=0.0;
-        if('roughness' in mat) mat.roughness=.72;
-        if('environmentIntensity' in mat) mat.environmentIntensity=1.15;
-        if('directIntensity' in mat) mat.directIntensity=1.35;
-
-        // Small texture-driven fill so clothing/face remain readable at night.
-        if(mat.albedoTexture && 'emissiveTexture' in mat){
-          mat.emissiveTexture=mat.albedoTexture;
-          mat.emissiveColor=new BABYLON.Color3(.16,.16,.16);
-        }else if('emissiveColor' in mat){
-          mat.emissiveColor=new BABYLON.Color3(.08,.08,.08);
+        const src=visual.material;
+        const tex=src.albedoTexture||src.diffuseTexture||null;
+        const matte=new BABYLON.StandardMaterial('UP_PlayerMeshyMaterial',scene);
+        matte.diffuseColor=new BABYLON.Color3(1,1,1);
+        matte.specularColor=new BABYLON.Color3(.08,.08,.08);
+        matte.emissiveColor=new BABYLON.Color3(.18,.18,.18);
+        matte.backFaceCulling=false;
+        matte.alpha=1;
+        if(tex){
+          matte.diffuseTexture=tex;
+          matte.emissiveTexture=tex;
+          matte.emissiveColor=new BABYLON.Color3(.14,.14,.14);
         }
+        visual.material=matte;
       }
 
       visual.checkCollisions=false;
@@ -79,17 +76,46 @@
         }
       }
 
+      let lastP=player.getAbsolutePosition().clone();
+      let visualClock=0;
+      let rollPhase=0;
+
       const syncVisual=()=>{
-        // World-space follow: avoids all parent/root transform bugs.
         const p=player.getAbsolutePosition();
+        const dt=Math.min(.05,scene.getEngine().getDeltaTime()/1000);
+        visualClock+=dt;
+
+        const dx=p.x-lastP.x, dz=p.z-lastP.z;
+        const speed=Math.sqrt(dx*dx+dz*dz)/Math.max(dt,.001);
+        lastP.copyFrom(p);
+
+        const stealth=G.getStealthState?.()||{crouching:false,running:false};
+        const rolling=!!G.isRolling?.();
+
+        // Whole-body placeholder motion until the Meshy character receives a skeleton.
+        const moving=speed>.25;
+        const bob=moving?Math.sin(visualClock*(stealth.running?14:9))*(stealth.running?.055:.032):0;
+        const crouchOffset=stealth.crouching?-.28:0;
+        const lean=moving?(stealth.running?.10:.05):0;
+
         visual.position.x=p.x;
         visual.position.z=p.z;
+        visual.position.y=p.y + FEET_OFFSET - (SRC_MIN_Y*SCALE) + bob + crouchOffset;
 
-        // Feet baseline based on the real Meshy source bounds.
-        visual.position.y=p.y + FEET_OFFSET - (SRC_MIN_Y*SCALE);
-
-        // Preserve the already-approved movement orientation.
         visual.rotation.y=player.rotation.y + Math.PI;
+
+        if(rolling){
+          rollPhase=Math.min(1,rollPhase+dt/0.62);
+          visual.rotation.x=rollPhase*Math.PI*2;
+        }else{
+          rollPhase=0;
+          visual.rotation.x=BABYLON.Scalar.Lerp(visual.rotation.x||0,lean,1-Math.exp(-12*dt));
+        }
+
+        const targetScaleY=stealth.crouching?.84:1;
+        visual.scaling.x=SCALE;
+        visual.scaling.z=SCALE;
+        visual.scaling.y=BABYLON.Scalar.Lerp(visual.scaling.y||SCALE,SCALE*targetScaleY,1-Math.exp(-12*dt));
 
         visual.computeWorldMatrix(true);
       };
@@ -110,8 +136,8 @@
       const playerFill=new BABYLON.PointLight('UP_PlayerFill',player.getAbsolutePosition().add(new BABYLON.Vector3(0,1.2,-.8)),scene);
       playerFill.diffuse=new BABYLON.Color3(.72,.82,1.0);
       playerFill.specular=new BABYLON.Color3(.15,.15,.18);
-      playerFill.intensity=.48;
-      playerFill.range=5.5;
+      playerFill.intensity=.75;
+      playerFill.range=6.5;
 
       scene.onBeforeRenderObservable.add(()=>{
         syncVisual();
