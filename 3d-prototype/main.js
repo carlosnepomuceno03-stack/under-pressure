@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='MOVEMENT V21';
+const BUILD='MOVEMENT V22';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -674,7 +674,7 @@ scene.onBeforeRenderObservable.add(()=>{
   const isClimbing=['climb','hang','mantle'].includes(parkourState);
 
   // Rig stays aligned with collider; no independent visual yaw.
-  rigRoot.rotation.y=0;
+  rigRoot.rotation.y=Math.PI;
 
   animateRig(dt,moveAmount,running&&moveAmount>.1,isJumping,isClimbing);
 
