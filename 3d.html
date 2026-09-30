@@ -4,12 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Under Pressure 3D Prototype</title>
-  <link rel="stylesheet" href="./3d-prototype/style.css?v=28" />
+  <link rel="stylesheet" href="./3d-prototype/style.css?v=29" />
 </head>
 <body>
   <div id="hud">
     <div class="brand">UNDER PRESSURE 3D</div>
-    <div class="hint">WASD = andar • Shift = correr • Espaço = pular/escalar • clique = capturar mouse • Esc = soltar</div>
+    <div class="hint">WASD = andar • Shift = correr • Espaço = pular/escalar • E = ataque/takedown • R = pesado • Q = esquiva</div>
   <div id="objective"><span>OBJETIVO</span> <b id="objectiveText">Alcance o mural pelos telhados, rua ou campão</b></div>
   <div id="statusRow">
     <div id="alertWrap" data-state="SAFE"><span id="alertText">OCULTO</span><i><b id="alertBar"></b></i></div>
@@ -17,6 +17,11 @@
   </div>
   <div id="buildTag">...</div>
   <div id="mouseHint">CLIQUE NO JOGO PARA CAPTURAR O MOUSE</div>
+  </div>
+  <div id="combatHud">
+    <div class="combatLine"><span>HP</span><i><b id="hpBar"></b></i></div>
+    <div class="combatLine enemy"><span>GUARDA</span><i><b id="enemyBar"></b></i></div>
+    <div id="comboText">COMBO x0</div>
   </div>
   <div id="interactPrompt"></div>
   <div id="toast"></div>
@@ -40,7 +45,7 @@
 
   <canvas id="renderCanvas"></canvas>
   <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="./3d-prototype/main.js?v=28"></script>
-  <script src="./3d-prototype/game-systems.js?v=28"></script>
+  <script src="./3d-prototype/main.js?v=29"></script>
+  <script src="./3d-prototype/game-systems.js?v=29"></script>
 </body>
 </html>
