@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='RIG V17';
+const BUILD='RIG V18';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -139,17 +139,19 @@ const rElbow=joint('rElbow',rShoulder,0,-.62,0);
 const lForearm=limbBox('lForearm',.2,.58,.2,lElbow,0,-.29,0,rigMat);
 const rForearm=limbBox('rForearm',.2,.58,.2,rElbow,0,-.29,0,rigMat);
 
-// leg hierarchy: hip pivot -> thigh -> knee pivot -> shin
-const lHip=joint('lHip',rigRoot,-.23,.02,0);
-const rHip=joint('rHip',rigRoot,.23,.02,0);
-const lThigh=limbBox('lThigh',.27,.72,.28,lHip,0,-.36,0,rigDark);
-const rThigh=limbBox('rThigh',.27,.72,.28,rHip,0,-.36,0,rigDark);
-const lKnee=joint('lKnee',lHip,0,-.72,0);
-const rKnee=joint('rKnee',rHip,0,-.72,0);
-const lShin=limbBox('lShin',.24,.7,.25,lKnee,0,-.35,0,rigMat);
-const rShin=limbBox('rShin',.24,.7,.25,rKnee,0,-.35,0,rigMat);
-const lFoot=limbBox('lFoot',.28,.16,.48,lKnee,0,-.72,.11,rigDark);
-const rFoot=limbBox('rFoot',.28,.16,.48,rKnee,0,-.72,.11,rigDark);
+// leg hierarchy: hips slightly narrower, knees bend backward naturally, feet forward
+const lHip=joint('lHip',rigRoot,-.19,.04,0);
+const rHip=joint('rHip',rigRoot,.19,.04,0);
+const lThigh=limbBox('lThigh',.24,.68,.25,lHip,0,-.34,0,rigDark);
+const rThigh=limbBox('rThigh',.24,.68,.25,rHip,0,-.34,0,rigDark);
+const lKnee=joint('lKnee',lHip,0,-.68,0);
+const rKnee=joint('rKnee',rHip,0,-.68,0);
+const lShin=limbBox('lShin',.22,.66,.22,lKnee,0,-.33,0,rigMat);
+const rShin=limbBox('rShin',.22,.66,.22,rKnee,0,-.33,0,rigMat);
+const lAnkle=joint('lAnkle',lKnee,0,-.66,0);
+const rAnkle=joint('rAnkle',rKnee,0,-.66,0);
+const lFoot=limbBox('lFoot',.24,.14,.42,lAnkle,0,-.05,.15,rigDark);
+const rFoot=limbBox('rFoot',.24,.14,.42,rAnkle,0,-.05,.15,rigDark);
 
 let animClock=0;
 let lastPlayerPos=player.position.clone();
@@ -160,48 +162,63 @@ function dampAngle(current,target,dt,speed=12){
 
 function animateRig(dt,moveAmount,isRunning,isJumping,isClimbing){
   animClock+=dt;
-  const runRate=isRunning?11:7;
-  const stride=Math.sin(animClock*runRate);
-  const stride2=Math.sin(animClock*runRate+Math.PI);
+
+  const moving=moveAmount>.05;
+  const cycle=Math.sin(animClock*(isRunning?10.2:6.8));
+  const opp=Math.sin(animClock*(isRunning?10.2:6.8)+Math.PI);
 
   let armL=0,armR=0,legL=0,legR=0;
-  let elbowL=0,elbowR=0,kneeL=0,kneeR=0;
+  let elbowL=-.08,elbowR=-.08;
+  let kneeL=0,kneeR=0;
+  let ankleL=0,ankleR=0;
   let torsoLean=0;
 
   if(isClimbing){
-    // Alternating reach and step cycle for climbing.
-    const c=Math.sin(animClock*7);
-    armL=-1.9+c*.35;
-    armR=-1.9-c*.35;
-    elbowL=-.45;
-    elbowR=-.45;
-    legL=.65-c*.45;
-    legR=.65+c*.45;
-    kneeL=-.8+c*.35;
-    kneeR=-.8-c*.35;
-    torsoLean=.12;
+    const c=Math.sin(animClock*6.5);
+    armL=-1.55+c*.28;
+    armR=-1.55-c*.28;
+    elbowL=-.65;
+    elbowR=-.65;
+
+    legL=.38-c*.32;
+    legR=.38+c*.32;
+    kneeL=.95+Math.max(0,c)*.28;
+    kneeR=.95+Math.max(0,-c)*.28;
+    ankleL=-.18;
+    ankleR=-.18;
+    torsoLean=.10;
   }else if(isJumping){
-    // Air pose: arms slightly up, knees bent.
-    armL=-.55;
-    armR=-.55;
-    elbowL=-.2;
-    elbowR=-.2;
-    legL=.28;
-    legR=.28;
-    kneeL=-.75;
-    kneeR=-.75;
-    torsoLean=.08;
-  }else if(moveAmount>.05){
-    const amp=isRunning?1.0:.62;
-    armL=stride2*amp;
-    armR=stride*amp;
-    legL=stride*amp;
-    legR=stride2*amp;
-    elbowL=-.18-Math.max(0,stride2)*.35;
-    elbowR=-.18-Math.max(0,stride)*.35;
-    kneeL=-Math.max(0,-stride)*.7;
-    kneeR=-Math.max(0,-stride2)*.7;
-    torsoLean=isRunning?.16:.07;
+    armL=-.38;
+    armR=-.38;
+    elbowL=-.25;
+    elbowR=-.25;
+
+    legL=.18;
+    legR=.18;
+    kneeL=.72;
+    kneeR=.72;
+    ankleL=-.12;
+    ankleR=-.12;
+    torsoLean=.06;
+  }else if(moving){
+    const amp=isRunning?.78:.5;
+
+    // Human gait: hips swing less than arms, knees bend on the recovery leg.
+    armL=opp*(isRunning?.78:.5);
+    armR=cycle*(isRunning?.78:.5);
+
+    legL=cycle*amp;
+    legR=opp*amp;
+
+    kneeL=Math.max(0,-cycle)*(isRunning?.95:.6);
+    kneeR=Math.max(0,-opp)*(isRunning?.95:.6);
+
+    elbowL=-.18-Math.max(0,-opp)*.22;
+    elbowR=-.18-Math.max(0,-cycle)*.22;
+
+    ankleL=-legL*.18;
+    ankleR=-legR*.18;
+    torsoLean=isRunning?.13:.05;
   }
 
   lShoulder.rotation.x=dampAngle(lShoulder.rotation.x,armL,dt);
@@ -211,14 +228,18 @@ function animateRig(dt,moveAmount,isRunning,isJumping,isClimbing){
 
   lHip.rotation.x=dampAngle(lHip.rotation.x,legL,dt);
   rHip.rotation.x=dampAngle(rHip.rotation.x,legR,dt);
+
+  // Positive X bends the knee naturally backward for this rig.
   lKnee.rotation.x=dampAngle(lKnee.rotation.x,kneeL,dt);
   rKnee.rotation.x=dampAngle(rKnee.rotation.x,kneeR,dt);
 
-  torso.rotation.x=dampAngle(torso.rotation.x,torsoLean,dt);
-  chest.rotation.x=dampAngle(chest.rotation.x,torsoLean*.65,dt);
+  lAnkle.rotation.x=dampAngle(lAnkle.rotation.x,ankleL,dt);
+  rAnkle.rotation.x=dampAngle(rAnkle.rotation.x,ankleR,dt);
 
-  // tiny vertical body bounce while running
-  const bounce=(moveAmount>.05&&!isJumping&&!isClimbing)?Math.abs(stride)*.045:0;
+  torso.rotation.x=dampAngle(torso.rotation.x,torsoLean,dt);
+  chest.rotation.x=dampAngle(chest.rotation.x,torsoLean*.55,dt);
+
+  const bounce=(moving&&!isJumping&&!isClimbing)?Math.abs(cycle)*.025:0;
   rigRoot.position.y=dampAngle(rigRoot.position.y,-.05+bounce,dt,16);
 }
 
