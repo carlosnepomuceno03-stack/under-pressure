@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='STEALTH+GRAFFITI V30';
+const BUILD='COMBAT FIX V31';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -431,12 +431,13 @@ const rFoot=limbBox('rFoot',.24,.14,.42,rAnkle,0,-.05,.15,rigDark);
 
 let animClock=0;
 let lastPlayerPos=player.position.clone();
+const combatAnim={type:null,timer:0,duration:0};
 
 function dampAngle(current,target,dt,speed=12){
   return BABYLON.Scalar.Lerp(current,target,1-Math.exp(-speed*dt));
 }
 
-function animateRig(dt,moveAmount,isRunning,isJumping,isClimbing){
+function animateRig(dt,moveAmount,isRunning,isJumping,isClimbing,isCrouching=false){
   animClock+=dt;
 
   const moving=moveAmount>.05;
@@ -463,6 +464,19 @@ function animateRig(dt,moveAmount,isRunning,isJumping,isClimbing){
     ankleL=-.18;
     ankleR=-.18;
     torsoLean=.10;
+  }else if(isCrouching){
+    // Stable crouch pose. Keep the center of mass low without folding the rig into itself.
+    armL=-.12;
+    armR=-.12;
+    elbowL=-.34;
+    elbowR=-.34;
+    legL=.18;
+    legR=.18;
+    kneeL=.62;
+    kneeR=.62;
+    ankleL=-.12;
+    ankleR=-.12;
+    torsoLean=.18;
   }else if(isJumping){
     armL=-.38;
     armR=-.38;
@@ -515,8 +529,9 @@ function animateRig(dt,moveAmount,isRunning,isJumping,isClimbing){
   torso.rotation.x=dampAngle(torso.rotation.x,torsoLean,dt);
   chest.rotation.x=dampAngle(chest.rotation.x,torsoLean*.55,dt);
 
-  const bounce=(moving&&!isJumping&&!isClimbing)?Math.abs(cycle)*.025:0;
-  rigRoot.position.y=dampAngle(rigRoot.position.y,-.05+bounce,dt,16);
+  const bounce=(moving&&!isJumping&&!isClimbing&&!isCrouching)?Math.abs(cycle)*.025:0;
+  const crouchY=isCrouching?-.32:-.05;
+  rigRoot.position.y=dampAngle(rigRoot.position.y,crouchY+bounce,dt,16);
 }
 
 // camera — simple deterministic third-person orbit.
@@ -828,7 +843,7 @@ scene.onBeforeRenderObservable.add(()=>{
     vy=0;
     parkourState='normal';
     activeObstacle=null;
-    animateRig(dt,0,false,false,false);
+    animateRig(dt,0,false,false,false,false);
     lastPlayerPos.copyFrom(player.position);
     return;
   }
@@ -962,16 +977,30 @@ scene.onBeforeRenderObservable.add(()=>{
   // Rig stays aligned with collider; no independent visual yaw.
   rigRoot.rotation.y=Math.PI;
 
-  animateRig(dt,moveAmount,running&&moveAmount>.1,isJumping,isClimbing);
+  const stableCrouch=crouching&&parkourState==='normal'&&grounded;
+  animateRig(dt,moveAmount,running&&moveAmount>.1,isJumping,isClimbing,stableCrouch);
 
-  // Stealth crouch pose: lower silhouette, bent knees, quieter movement.
-  if(crouching&&parkourState==='normal'&&grounded){
-    rigRoot.position.y-=.30;
-    torso.rotation.x+=.10;
-    lHip.rotation.x+=.28;
-    rHip.rotation.x+=.28;
-    lKnee.rotation.x+=.72;
-    rKnee.rotation.x+=.72;
+  // Procedural combat swing layered on top of locomotion.
+  if(combatAnim.timer>0){
+    combatAnim.timer=Math.max(0,combatAnim.timer-dt);
+    const t=1-combatAnim.timer/combatAnim.duration;
+    const swing=Math.sin(Math.PI*Math.min(1,t));
+    if(combatAnim.type==='heavy'){
+      rShoulder.rotation.x=-1.65*swing;
+      rShoulder.rotation.z=-.75*swing;
+      rElbow.rotation.x=-.65*swing;
+      torso.rotation.y=-.45*swing;
+      lShoulder.rotation.x=.35*swing;
+    }else{
+      rShoulder.rotation.x=-1.05*swing;
+      rShoulder.rotation.z=-1.0*swing;
+      rElbow.rotation.x=-.35*swing;
+      torso.rotation.y=-.28*swing;
+      lShoulder.rotation.x=.18*swing;
+    }
+  }else{
+    torso.rotation.y=dampAngle(torso.rotation.y,0,dt,18);
+    rShoulder.rotation.z=dampAngle(rShoulder.rotation.z,0,dt,18);
   }
 
   // Extra readability for landing and mantle.
@@ -1032,6 +1061,11 @@ window.UP3D={
     return new BABYLON.Vector3(
       -Math.sin(player.rotation.y),0,-Math.cos(player.rotation.y)
     ).normalize();
+  },
+  playAttack(type='light'){
+    combatAnim.type=type;
+    combatAnim.duration=type==='heavy'?.46:.28;
+    combatAnim.timer=combatAnim.duration;
   },
   resetMotion(){
     moveVelocity.set(0,0,0);
