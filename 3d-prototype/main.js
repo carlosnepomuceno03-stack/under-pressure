@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='CLEANUP V33';
+const BUILD='MOBILE V35';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -552,6 +552,9 @@ let camPitch=.16;
 let camDistance=7.2;
 let pointerLocked=false;
 let firstPerson=false;
+const mobileInput=()=>window.UP_MOBILE_STATE||{x:0,y:0,magnitude:0,jump:false,crouch:false};
+let mobileJumpWasDown=false;
+let currentMoveIntent=BABYLON.Vector3.Zero();
 
 function setFirstPerson(v){
   firstPerson=!!v;
@@ -566,6 +569,7 @@ window.addEventListener('keydown',e=>{
 document.getElementById('viewToggle')?.addEventListener('click',()=>setFirstPerson(!firstPerson));
 
 function lockMouse(){
+  if(matchMedia('(pointer:coarse)').matches)return;
   if(document.pointerLockElement!==canvas) canvas.requestPointerLock?.();
 }
 canvas.addEventListener('click',lockMouse);
@@ -883,7 +887,7 @@ scene.onBeforeRenderObservable.add(()=>{
   }
 
   // Small camera feedback for speed/landing without changing controls.
-  const sprintingNow=!!(keys.ShiftLeft||keys.ShiftRight);
+  const sprintingNow=!!(keys.ShiftLeft||keys.ShiftRight)||mobileInput().magnitude>.88;
   const targetFov=firstPerson?.92:(sprintingNow&&parkourState==='normal'?.91:.84);
   camera.fov=BABYLON.Scalar.Lerp(camera.fov,targetFov,1-Math.exp(-6*dt));
 
@@ -907,21 +911,29 @@ scene.onBeforeRenderObservable.add(()=>{
   wasGrounded=grounded;
 
   const f=forwardFlat(),r=rightFlat();
+  const mobile=mobileInput();
   let wish=BABYLON.Vector3.Zero();
   if(keys.KeyW||keys.ArrowUp)wish.addInPlace(f);
   if(keys.KeyS||keys.ArrowDown)wish.subtractInPlace(f);
   if(keys.KeyD||keys.ArrowRight)wish.addInPlace(r);
   if(keys.KeyA||keys.ArrowLeft)wish.subtractInPlace(r);
 
-  const crouching=!!(keys.ControlLeft||keys.ControlRight||keys.KeyC);
-  const running=!crouching&&!!(keys.ShiftLeft||keys.ShiftRight);
+  // True analog movement on touch devices.
+  if(Math.abs(mobile.y)>.01)wish.addInPlace(f.scale(mobile.y));
+  if(Math.abs(mobile.x)>.01)wish.addInPlace(r.scale(mobile.x));
+
+  const crouching=!!(keys.ControlLeft||keys.ControlRight||keys.KeyC||mobile.crouch);
+  const running=!crouching&&(!!(keys.ShiftLeft||keys.ShiftRight)||mobile.magnitude>.88);
   const maxSpeed=crouching?2.15:(running?7.2:4.7);
   const accel=grounded?18:7;
   const friction=grounded?15:2.2;
 
   if(wish.lengthSquared()>.001){
+    const analogStrength=(Math.abs(mobile.x)>.01||Math.abs(mobile.y)>.01)
+      ?BABYLON.Scalar.Clamp(mobile.magnitude,0,1):1;
     wish.normalize();
-    const desired=wish.scale(maxSpeed);
+    currentMoveIntent.copyFrom(wish);
+    const desired=wish.scale(maxSpeed*analogStrength);
     moveVelocity=BABYLON.Vector3.Lerp(
       moveVelocity,
       desired,
@@ -932,6 +944,7 @@ scene.onBeforeRenderObservable.add(()=>{
     let dyaw=((yaw-player.rotation.y+Math.PI)%(Math.PI*2)+Math.PI)%(Math.PI*2)-Math.PI;
     player.rotation.y+=dyaw*(1-Math.exp(-12*dt));
   }else{
+    currentMoveIntent.scaleInPlace(.82);
     moveVelocity=BABYLON.Vector3.Lerp(
       moveVelocity,
       BABYLON.Vector3.Zero(),
@@ -939,11 +952,17 @@ scene.onBeforeRenderObservable.add(()=>{
     );
   }
 
-  const spaceHeld=!!keys.Space;
+  const mobileJump=!!mobile.jump;
+  if(mobileJump&&!mobileJumpWasDown){
+    spacePressedAt=performance.now();
+    jumpBufferTimer=.13;
+  }
+  mobileJumpWasDown=mobileJump;
+  const spaceHeld=!!keys.Space||mobileJump;
   const heldMs=spaceHeld?(performance.now()-spacePressedAt):0;
 
   // Enter contextual parkour only from normal movement.
-  const forwardIntent=!!(keys.KeyW||keys.ArrowUp);
+  const forwardIntent=!!(keys.KeyW||keys.ArrowUp)||mobile.y>.28;
   if(parkourState==='normal'&&spaceHeld&&forwardIntent&&heldMs>90&&parkourCooldown<=0){
     const hit=probeWall(1.35);
     if(hit){
@@ -1083,13 +1102,23 @@ window.UP3D={
   makeEmissive:emissiveMat,
   setGameplayLocked(v){gameplayLocked=!!v;},
   getStealthState(){
-    const crouching=!!(keys.ControlLeft||keys.ControlRight||keys.KeyC);
-    const running=!crouching&&!!(keys.ShiftLeft||keys.ShiftRight);
+    const m=mobileInput();
+    const crouching=!!(keys.ControlLeft||keys.ControlRight||keys.KeyC||m.crouch);
+    const running=!crouching&&(!!(keys.ShiftLeft||keys.ShiftRight)||m.magnitude>.88);
     return {
       crouching,
       running,
       speed:Math.sqrt(moveVelocity.x*moveVelocity.x+moveVelocity.z*moveVelocity.z)
     };
+  },
+  addLookDelta(dx,dy){
+    camYaw-=dx*.0042;
+    camPitch=BABYLON.Scalar.Clamp(camPitch+dy*.0033,-.38,.48);
+  },
+  toggleView(){setFirstPerson(!firstPerson);},
+  getMoveDirection(){
+    if(currentMoveIntent.lengthSquared()>.04)return currentMoveIntent.clone().normalize();
+    return new BABYLON.Vector3(-Math.sin(player.rotation.y),0,-Math.cos(player.rotation.y)).normalize();
   },
   getForward(){
     return new BABYLON.Vector3(
