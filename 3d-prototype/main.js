@@ -1,18 +1,18 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='VISUAL PASS V25';
+const BUILD='VISUAL PASS V26';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
 const scene=new BABYLON.Scene(engine);
-scene.clearColor=new BABYLON.Color4(0.025,0.035,0.075,1);
+scene.clearColor=new BABYLON.Color4(0.055,0.075,0.145,1);
 scene.fogMode=BABYLON.Scene.FOGMODE_EXP2;
-scene.fogDensity=.0065;
-scene.fogColor=new BABYLON.Color3(.055,.07,.12);
+scene.fogDensity=.0048;
+scene.fogColor=new BABYLON.Color3(.09,.10,.16);
 scene.imageProcessingConfiguration.exposure=1.08;
 scene.imageProcessingConfiguration.contrast=1.18;
 
 const light=new BABYLON.HemisphericLight('hemi',new BABYLON.Vector3(0,1,0),scene);
-light.intensity=.56;
+light.intensity=.68;
 light.diffuse=new BABYLON.Color3(.48,.57,.78);
 light.groundColor=new BABYLON.Color3(.22,.12,.10);
 
@@ -255,6 +255,8 @@ ctx.strokeText('TDG',512,435); ctx.fillText('TDG',512,435);
 muralTex.update();
 
 const muralGameMat=new BABYLON.StandardMaterial('muralGameMat',scene);
+muralTex.vScale=-1;
+muralTex.vOffset=1;
 muralGameMat.diffuseTexture=muralTex;
 muralGameMat.specularColor=new BABYLON.Color3(.05,.05,.05);
 mural.material=muralGameMat;
@@ -270,11 +272,64 @@ for(const x of [20,32]){
   pl.range=12;
 }
 
+// simple layered dusk horizon
+const horizonMat=emissiveMat('horizonMat','#a85855',.45);
+const horizon=box('horizon',120,14,1,0,6,-50,horizonMat,false);
+horizon.checkCollisions=false;
+const horizonTopMat=emissiveMat('horizonTop','#3f456f',.32);
+const horizonTop=box('horizonTop',120,18,1,0,20,-51,horizonTopMat,false);
+horizonTop.checkCollisions=false;
+
 // distant skyline silhouettes
 for(let i=0;i<18;i++){
   const w=3+(i%4), h=3+(i%5)*1.2, d=4+(i%3);
   const b=box('skyline'+i,w,h,d,-42+i*5.4,h/2-1,-43,wallDark,false);
   b.checkCollisions=false;
+}
+
+// road paint and small facade details
+for(let z=-30;z<=30;z+=8){
+  const mark=box('lane'+z,.22,.03,3,-15,.16,z,curbMat,false);
+  mark.checkCollisions=false;
+}
+
+for(const z of [-22,-4,14,28]){
+  const curb=box('curbAccent'+z,2.8,.08,.45,-5.7,.30,z,curbMat,false);
+  curb.checkCollisions=false;
+}
+
+// simple gates / shutters / awnings to break up flat boxes
+for(const [x,z,w,material] of [
+  [-25.88,-20,2.6,metalMat],
+  [-25.88,2,2.2,bluePaint],
+  [-25.88,24,2.8,metalMat],
+  [3.52,18,2.6,bluePaint]
+]){
+  const gate=box('gate'+x+z,w,2.3,.10,x,1.16,z,material,false);
+  gate.checkCollisions=false;
+}
+for(const [x,y,z,w] of [
+  [-25.7,3.25,-8,2.4],
+  [-25.7,3.15,13,2.4],
+  [3.35,3.45,18,3.1]
+]){
+  const aw=box('awningDetail'+x+z,w,.16,1.1,x,y,z,roofMat,false);
+  aw.rotation.z=.03;
+  aw.checkCollisions=false;
+}
+
+// extra warm/cool lights for depth
+for(const [x,y,z,cold] of [
+  [-26,2.5,-8,false],
+  [-26,2.4,13,false],
+  [3.4,2.6,18,true],
+  [18,5.8,8,false],
+  [30,7.4,-3,true]
+]){
+  const pl=new BABYLON.PointLight('detailLight'+x+z,new BABYLON.Vector3(x,y,z),scene);
+  pl.diffuse=cold?new BABYLON.Color3(.25,.85,1):new BABYLON.Color3(1,.5,.22);
+  pl.intensity=.32;
+  pl.range=8;
 }
 
 // player collider + simple humanoid visual rig
