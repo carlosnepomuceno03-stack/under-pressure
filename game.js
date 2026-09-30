@@ -268,7 +268,7 @@ class Menu extends Phaser.Scene{
     addOrientationHint(this);
     this.add.image(GW/2,GH/2,'menu');
     const zones=[
-      [258,466,365,88,()=>{P.missionComplete=P.phase3Complete;SAVE.set(P);this.scene.start('Custom',{next:'Map'})}],
+      [258,466,365,88,()=>{P.missionComplete=P.phase3Complete;SAVE.set(P);this.scene.start('Custom',{next:IS_TOUCH?'MobileMap':'Map'})}],
       [263,557,345,70,()=>this.scene.start('Custom',{next:'Menu'})],
       [270,642,340,70,()=>this.toast('M = áudio • WASD = andar • E = interagir • ESPAÇO = chacoalhar')],
       [270,728,340,66,()=>this.toast('UNDER PRESSURE • TDG CREW EDITION')],
@@ -357,7 +357,7 @@ class Custom extends Phaser.Scene{
     });
 
     const back=btn(this,1000,875,180,54,'VOLTAR',MID,'#fff',18);back.on('pointerdown',()=>this.scene.start('Menu'));
-    const go=btn(this,1320,875,320,54,this.next==='Map'?'SALVAR E JOGAR':'SALVAR',YELLOW,'#111',19);
+    const go=btn(this,1320,875,320,54,(this.next==='Map'||this.next==='MobileMap')?'SALVAR E JOGAR':'SALVAR',YELLOW,'#111',19);
     go.on('pointerdown',()=>{
       // Mobile-safe transition: recoloring is already applied when visual options change.
       // Rebuilding 20+ large canvas textures again here can lock Safari/iPhone.
@@ -369,7 +369,7 @@ class Custom extends Phaser.Scene{
 
       // Finishing the campaign unlocks the rare mask. Replaying with it equipped
       // unlocks the neon palette and starts a fresh run while keeping inventory.
-      if(this.next==='Map'&&P.phase3Complete&&P.rareMaskUnlocked&&P.rareMaskEquipped){
+      if((this.next==='Map'||this.next==='MobileMap')&&P.phase3Complete&&P.rareMaskUnlocked&&P.rareMaskEquipped){
         P.neonUnlocked=true;P.replayCount=(P.replayCount||0)+1;
         P.phase1Complete=false;P.phase2Complete=false;P.phase3Complete=false;
         P.missionComplete=false;P.phase=1;
@@ -901,7 +901,7 @@ class MapScene extends Phaser.Scene{
       this.cameras.main.zoom=Phaser.Math.Linear(this.cameras.main.zoom,1.18,.085);
       if(time-this.lastStep>300){this.lastStep=time;AUDIO.stepFx()}
     }else{
-      this.currentFrame='idle_'+this.last;this.player.setTexture('game_'+this.currentFrame);
+      this.currentFrame='idle_'+this.last;this.player.setTexture(charKey(this.currentFrame));
       this.cameras.main.zoom=Phaser.Math.Linear(this.cameras.main.zoom,1.13,.065);
     }
     this.shadow.setPosition(this.player.x,this.player.y+3).setDepth(this.player.y-1);this.player.setDepth(this.player.y);this.updateMask(this.currentFrame||'idle_front');
@@ -915,6 +915,192 @@ class MapScene extends Phaser.Scene{
     this.updateStealth(delta);
     this.checkCollectibles();
     this.updateMiniMap();
+  }
+}
+
+
+// ---------- MOBILE MAP: ONE PHASE, ONE SCENE ----------
+class MobileMap extends Phaser.Scene{
+  constructor(){super('MobileMap')}
+  create(){
+    AUDIO.setScene('map');
+    addOrientationHint(this);
+
+    this.phase=P.phase3Complete?3:(P.phase2Complete?3:(P.phase1Complete?2:1));
+    this.worldW=GW;this.worldH=GH;
+
+    // Only the current phase background exists.
+    this.bg=this.add.image(GW/2,GH/2,'map');
+    if(this.phase===2)this.bg.setFlipX(true).setTint(0x6fb7ff);
+    if(this.phase===3)this.bg.setFlipY(true).setTint(0xd982ff);
+
+    const wallCfg={
+      1:{x:1245,y:408,w:520,h:255,flip:false,tint:0xffffff},
+      2:{x:1120,y:360,w:470,h:240,flip:true,tint:0xffffff},
+      3:{x:1180,y:360,w:500,h:250,flip:false,tint:0xd7cadf}
+    }[this.phase];
+    this.wall=this.add.image(wallCfg.x,wallCfg.y,'clean_wall').setDisplaySize(wallCfg.w,wallCfg.h).setDepth(2).setFlipX(wallCfg.flip).setTint(wallCfg.tint);
+
+    const starts={1:{x:790,y:735},2:{x:185,y:735},3:{x:260,y:760}};
+    const goals={1:{x:1230,y:618},2:{x:1120,y:585},3:{x:1180,y:610}};
+    const st=starts[this.phase],goal=goals[this.phase];
+
+    this.shadow=this.add.ellipse(st.x,st.y+5,58,17,0x000000,.4).setDepth(20);
+    this.player=this.add.sprite(st.x,st.y,charKey('idle_front')).setOrigin(.5,.92).setScale(.47).setDepth(21);
+    this.maskOverlay=this.add.sprite(st.x,st.y,'maskframe_idle_front').setOrigin(.5,.92).setScale(.47).setDepth(22).setVisible(P.mask);
+    if(P.rareMaskEquipped)this.maskOverlay.setTint(0xc56cff);
+
+    this.point=new Phaser.Math.Vector2(goal.x,goal.y);
+    this.halo=this.add.ellipse(goal.x,goal.y,138,46,0xffd447,.16).setStrokeStyle(5,0xffd447,.95).setDepth(8);
+    this.tweens.add({targets:this.halo,scaleX:1.12,scaleY:1.12,alpha:.34,duration:820,yoyo:true,repeat:-1});
+    this.prompt=txt(this,goal.x,goal.y-92,'PINTAR',18,'#fff',true).setOrigin(.5).setBackgroundColor('#090c12').setPadding(11,7).setVisible(false).setDepth(40);
+
+    // Minimal collisions, only this phase tile.
+    this.blockers=[
+      new Phaser.Geom.Rectangle(350,270,125,135),
+      new Phaser.Geom.Rectangle(205,470,88,92),
+      new Phaser.Geom.Rectangle(770,450,120,92),
+      new Phaser.Geom.Rectangle(1390,505,165,65)
+    ];
+
+    // Lightweight HUD. No extra camera, no large world.
+    this.ui=this.add.container(0,0).setDepth(1000).setScrollFactor(0);
+    const hud=this.add.rectangle(245,62,430,98,0x090c12,.88).setStrokeStyle(2,0xffffff,.10);
+    const h1=txt(this,40,25,'FASE '+this.phase,16,'#ffd447',true);
+    const count=this.phase===1?1:(this.phase===2?2:4);
+    const h2=txt(this,40,52,'Chegue ao muro sem ser visto',20,'#fff',true);
+    this.guardText=txt(this,40,79,count+' GUARDA'+(count>1?'S':'')+' • dificuldade '+(this.phase===1?'baixa':this.phase===2?'média':'alta'),13,'#b9c2d1');
+    this.ui.add([hud,h1,h2,this.guardText]);
+
+    const menu=btn(this,GW-90,GH-44,145,52,'MENU',MID,'#fff',17);
+    const replay=btn(this,GW-260,GH-44,170,52,'REJOGAR',0x26324a,'#fff',14);
+    this.ui.add([menu.bg,menu.tx,replay.bg,replay.tx]);
+    menu.on('pointerdown',()=>this.scene.start('Menu'));
+    replay.on('pointerdown',()=>this.scene.start('Paint',{phase:this.phase,replay:true}));
+
+    this.createMobileGuards();
+
+    this.last='front';this.frame=0;this.speed=250;this.lastStep=0;
+    this.cursors=this.input.keyboard.createCursorKeys();
+    this.keys=this.input.keyboard.addKeys('W,A,S,D,E');
+    this.input.keyboard.on('keydown-E',()=>this.tryPaint());
+
+    this.cameras.main.setBounds(0,0,GW,GH).startFollow(this.player,true,.1,.1).setZoom(1.02);
+    this.makeMobileControls();
+  }
+
+  createMobileGuards(){
+    this.guards=[];this.stealthCaught=0;
+    const add=(x,y,axis,range,speed,dir=1)=>{
+      const body=this.add.container(x,y).setDepth(25);
+      const shadow=this.add.ellipse(0,14,42,13,0x000000,.42);
+      const officer=this.add.sprite(0,18,charKey('idle_front')).setOrigin(.5,.92).setScale(.30).setTint(0x6f88bb);
+      const vest=this.add.rectangle(0,-8,28,23,0x071329,.65);
+      const cap=this.add.rectangle(0,-52,25,8,0x0e1a32,1);
+      body.add([shadow,officer,vest,cap]);
+      const cone=this.add.graphics().setDepth(24);
+      this.guards.push({body,officer,cone,startX:x,startY:y,axis,range,speed,dir});
+    };
+    if(this.phase===1)add(1040,535,'x',150,42,1);
+    if(this.phase===2){add(720,390,'x',220,66,1);add(460,680,'y',175,60,-1)}
+    if(this.phase===3){add(470,455,'x',210,78,1);add(860,680,'y',190,76,-1);add(1260,500,'x',175,84,-1);add(760,300,'y',145,80,1)}
+  }
+
+  makeMobileControls(){
+    this.joy={x:0,y:0};
+    const base=this.add.circle(140,GH-135,72,0x0a0f18,.62).setStrokeStyle(3,0xffffff,.22).setDepth(1200).setScrollFactor(0);
+    const knob=this.add.circle(140,GH-135,31,0xffffff,.28).setDepth(1201).setScrollFactor(0);
+    const zone=this.add.circle(140,GH-135,95,0xffffff,.001).setInteractive().setDepth(1202).setScrollFactor(0);
+    const move=p=>{
+      const dx=p.x-140,dy=p.y-(GH-135),len=Math.hypot(dx,dy)||1,k=Math.min(1,70/len);
+      knob.setPosition(140+dx*k,GH-135+dy*k);this.joy.x=dx/Math.max(70,len);this.joy.y=dy/Math.max(70,len);
+    };
+    zone.on('pointerdown',move);zone.on('pointermove',p=>{if(p.isDown)move(p)});
+    const stop=()=>{this.joy.x=0;this.joy.y=0;knob.setPosition(140,GH-135)};
+    zone.on('pointerup',stop);zone.on('pointerout',p=>{if(!p.isDown)stop()});
+    const action=btn(this,GW-120,GH-135,155,72,'PINTAR',YELLOW,'#111',17);
+    action.bg.setDepth(1200).setScrollFactor(0);action.tx.setDepth(1201).setScrollFactor(0);
+    action.on('pointerdown',()=>this.tryPaint());
+  }
+
+  blocked(x,y){
+    const r=16;
+    return this.blockers.some(b=>Phaser.Geom.Rectangle.Contains(b,x-r,y-r)||Phaser.Geom.Rectangle.Contains(b,x+r,y-r)||Phaser.Geom.Rectangle.Contains(b,x-r,y+r)||Phaser.Geom.Rectangle.Contains(b,x+r,y+r));
+  }
+
+  tryPaint(){
+    if(Phaser.Math.Distance.Between(this.player.x,this.player.y,this.point.x,this.point.y)<145){
+      AUDIO.select();this.scene.start('Paint',{phase:this.phase});
+    }
+  }
+
+  updateGuards(delta){
+    const dt=delta/1000;let seen=false;
+    const len=[160,205,245][this.phase-1],spread=[.34,.42,.48][this.phase-1];
+    for(const g of this.guards){
+      if(g.axis==='x'){
+        g.body.x+=g.dir*g.speed*dt;
+        if(Math.abs(g.body.x-g.startX)>g.range)g.dir*=-1;
+        g.officer.setTexture(charKey(g.dir>0?'idle_right':'idle_left'));
+      }else{
+        g.body.y+=g.dir*g.speed*dt;
+        if(Math.abs(g.body.y-g.startY)>g.range)g.dir*=-1;
+        g.officer.setTexture(charKey(g.dir>0?'idle_front':'idle_back'));
+      }
+      const gx=g.body.x,gy=g.body.y;
+      const facing=g.axis==='x'?(g.dir>0?0:Math.PI):(g.dir>0?Math.PI/2:-Math.PI/2);
+      g.cone.clear().fillStyle(0xfff1a8,.11).beginPath();
+      g.cone.moveTo(gx,gy-18);
+      g.cone.lineTo(gx+Math.cos(facing-spread)*len,gy-18+Math.sin(facing-spread)*len);
+      g.cone.lineTo(gx+Math.cos(facing+spread)*len,gy-18+Math.sin(facing+spread)*len);
+      g.cone.closePath().fillPath();
+      const dist=Phaser.Math.Distance.Between(gx,gy,this.player.x,this.player.y);
+      let da=Math.atan2(this.player.y-gy,this.player.x-gx)-facing;
+      while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
+      if(dist<len&&Math.abs(da)<spread*.78)seen=true;
+    }
+    this.stealthCaught=Phaser.Math.Clamp(this.stealthCaught+(seen?1:-1.7)*dt,0,1);
+    if(seen)this.guardText.setText('VOCÊ ESTÁ SENDO VISTO!').setColor('#ff4f77');
+    else{
+      const c=this.guards.length;this.guardText.setText(c+' GUARDA'+(c>1?'S':'')+' • dificuldade '+(this.phase===1?'baixa':this.phase===2?'média':'alta')).setColor('#b9c2d1');
+    }
+    if(this.stealthCaught>=1){
+      this.stealthCaught=0;AUDIO.siren();
+      const st={1:{x:790,y:735},2:{x:185,y:735},3:{x:260,y:760}}[this.phase];
+      this.player.setPosition(st.x,st.y);this.shadow.setPosition(st.x,st.y+5);this.maskOverlay.setPosition(st.x,st.y);
+    }
+  }
+
+  update(time,delta){
+    let dx=0,dy=0;
+    if(this.keys.A.isDown||this.cursors.left.isDown)dx--;
+    if(this.keys.D.isDown||this.cursors.right.isDown)dx++;
+    if(this.keys.W.isDown||this.cursors.up.isDown)dy--;
+    if(this.keys.S.isDown||this.cursors.down.isDown)dy++;
+    if(this.joy){dx+=this.joy.x;dy+=this.joy.y}
+    const moving=Math.abs(dx)+Math.abs(dy)>.05;
+    if(moving){
+      const l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;const sp=this.speed*delta/1000;
+      const nx=Phaser.Math.Clamp(this.player.x+dx*sp,50,GW-50);
+      if(!this.blocked(nx,this.player.y))this.player.x=nx;
+      const ny=Phaser.Math.Clamp(this.player.y+dy*sp,105,GH-35);
+      if(!this.blocked(this.player.x,ny))this.player.y=ny;
+      const dir=Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'front':'back');
+      this.last=dir;this.frame=(this.frame+delta*.008)%4;
+      this.player.setTexture(charKey('walk_'+dir+'_'+(Math.floor(this.frame)+1)));
+      if(time-this.lastStep>320){this.lastStep=time;AUDIO.stepFx()}
+    }else{
+      this.player.setTexture(charKey('idle_'+this.last));
+    }
+    this.shadow.setPosition(this.player.x,this.player.y+5).setDepth(this.player.y-1);this.player.setDepth(this.player.y);
+    if(P.mask){
+      const key=moving?'walk_'+this.last+'_'+(Math.floor(this.frame)+1):'idle_'+this.last;
+      this.maskOverlay.setVisible(true).setTexture('maskframe_'+key).setPosition(this.player.x,this.player.y).setDepth(this.player.y+2);
+      if(P.rareMaskEquipped)this.maskOverlay.setTint(0xc56cff);
+    }else this.maskOverlay.setVisible(false);
+
+    this.prompt.setVisible(Phaser.Math.Distance.Between(this.player.x,this.player.y,this.point.x,this.point.y)<150);
+    this.updateGuards(delta);
   }
 }
 
@@ -1290,7 +1476,7 @@ class Paint extends Phaser.Scene{
     replay.bg.setDepth(1003);replay.tx.setDepth(1004);
     replay.on('pointerdown',()=>this.scene.restart({phase:this.phase,replay:true}));
     const b=btn(this,GW/2+175,680,300,62,'VOLTAR AO MAPA',YELLOW,'#111',18);
-    b.bg.setDepth(1003);b.tx.setDepth(1004);b.on('pointerdown',()=>this.scene.start('Map'));
+    b.bg.setDepth(1003);b.tx.setDepth(1004);b.on('pointerdown',()=>this.scene.start(IS_TOUCH?'MobileMap':'Map'));
   }
 
   update(_,delta){
@@ -1363,6 +1549,6 @@ const config={
   dom:{createContainer:true},
   scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:GW,height:GH},
   render:{antialias:true,pixelArt:false,roundPixels:false},
-  scene:[Boot,Menu,Custom,MapScene,Paint]
+  scene:[Boot,Menu,Custom,MapScene,MobileMap,Paint]
 };
 new Phaser.Game(config);
