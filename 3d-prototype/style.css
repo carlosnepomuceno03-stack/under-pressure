@@ -133,3 +133,9 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#090b10;fon
   body.touch-game #mobileActions{transform:scale(.86);transform-origin:bottom right}
   body.touch-game .stickBase{transform:scale(.86);transform-origin:bottom left}
 }
+
+/* V34 — real uploaded graffiti references */
+.artThumb{display:block;width:100%;height:68px;object-fit:cover;object-position:center;border-radius:6px;margin:-2px -2px 7px;background:#20242c}
+.artThumb:before,.artThumb:after{display:none!important}
+.artCard{min-height:136px}
+.artCard.active .artThumb{outline:2px solid #41e7ff;outline-offset:-2px}
