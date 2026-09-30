@@ -391,10 +391,15 @@ class MapScene extends Phaser.Scene{
     // Expanded temporary world: reuse the existing environment as three connected districts.
     this.worldW=GW*2; this.worldH=GH*2;
     const bg1=this.add.image(GW/2,GH/2,'map');
-    const bg2=this.add.image(GW+GW/2,GH/2,'map').setFlipX(true).setTint(0xa9c7e8);
-    const bg3=this.add.image(GW+GW/2,GH+GH/2,'map').setFlipY(true).setTint(0xc9a8d8);
-    const bg4=this.add.image(GW/2,GH+GH/2,'map').setFlipX(true).setFlipY(true).setTint(0xa8c9b7);
-    this.world.add([bg1,bg2,bg3,bg4]);
+    const bg2=this.add.image(GW+GW/2,GH/2,'map').setFlipX(true).setTint(0x6fb7ff);
+    const bg3=this.add.image(GW+GW/2,GH+GH/2,'map').setFlipY(true).setTint(0xd982ff);
+    const bg4=this.add.image(GW/2,GH+GH/2,'map').setFlipX(true).setFlipY(true).setTint(0x63d6a4);
+
+    // Color grading overlays so each district reads as a different neighborhood.
+    const grade2=this.add.rectangle(GW+GW/2,GH/2,GW,GH,0x1266a8,.14).setBlendMode(Phaser.BlendModes.ADD);
+    const grade3=this.add.rectangle(GW+GW/2,GH+GH/2,GW,GH,0x8c27b8,.15).setBlendMode(Phaser.BlendModes.ADD);
+    const grade4=this.add.rectangle(GW/2,GH+GH/2,GW,GH,0x167b62,.13).setBlendMode(Phaser.BlendModes.ADD);
+    this.world.add([bg1,bg2,bg3,bg4,grade2,grade3,grade4]);
 
     // Mission walls. These are temporary reused assets until bespoke districts are generated.
     this.wall1=this.add.image(1245,408,'clean_wall').setDisplaySize(520,255).setDepth(1);
@@ -638,9 +643,9 @@ class MapScene extends Phaser.Scene{
     const mapBox=this.add.rectangle(0,12,this.mmW,this.mmH,0x141b28,1).setStrokeStyle(2,0x566075,.7);
     // Four reused districts.
     const q1=this.add.rectangle(-67.5,-25.5,132,72,0x1d2738,.9);
-    const q2=this.add.rectangle(67.5,-25.5,132,72,0x263149,.9);
-    const q3=this.add.rectangle(-67.5,49.5,132,72,0x1c3030,.9);
-    const q4=this.add.rectangle(67.5,49.5,132,72,0x33263d,.9);
+    const q2=this.add.rectangle(67.5,-25.5,132,72,0x174c7a,.95);
+    const q3=this.add.rectangle(-67.5,49.5,132,72,0x17614d,.95);
+    const q4=this.add.rectangle(67.5,49.5,132,72,0x653078,.95);
     this.mmPlayer=this.add.circle(0,0,7,0xffd447,1).setStrokeStyle(2,0xffffff,1);
     this.mmGoal=this.add.circle(0,0,6,0xff2d78,.95).setStrokeStyle(2,0xffffff,.8);
     const legend=txt(this,-138,92,'● VOCÊ   ● SPOT',11,'#c8d0dc',true);
