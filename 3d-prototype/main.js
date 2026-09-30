@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='MOBILE V35';
+const BUILD='ACTION+REAL ART V34';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -439,7 +439,8 @@ const rFoot=limbBox('rFoot',.24,.14,.42,rAnkle,0,-.05,.15,rigDark);
 
 let animClock=0;
 let lastPlayerPos=player.position.clone();
-const combatAnim={type:null,timer:0,duration:0};
+const combatAnim={type:null,timer:0,duration:0,side:1,combo:0};
+const rollAnim={active:false,timer:0,duration:.56,dir:new BABYLON.Vector3(0,0,1)};
 
 function dampAngle(current,target,dt,speed=12){
   return BABYLON.Scalar.Lerp(current,target,1-Math.exp(-speed*dt));
@@ -473,18 +474,19 @@ function animateRig(dt,moveAmount,isRunning,isJumping,isClimbing,isCrouching=fal
     ankleR=-.18;
     torsoLean=.10;
   }else if(isCrouching){
-    // Stable crouch pose. Keep the center of mass low without folding the rig into itself.
-    armL=-.12;
-    armR=-.12;
-    elbowL=-.34;
-    elbowR=-.34;
-    legL=.18;
-    legR=.18;
-    kneeL=.62;
-    kneeR=.62;
-    ankleL=-.12;
-    ankleR=-.12;
-    torsoLean=.18;
+    // Readable stealth crouch with a restrained crouch-walk cycle.
+    const c=moving?cycle*.16:0;
+    armL=-.34+opp*.12;
+    armR=-.34+cycle*.12;
+    elbowL=-.52;
+    elbowR=-.52;
+    legL=.30+c;
+    legR=.30-c;
+    kneeL=.78+Math.max(0,-c)*.32;
+    kneeR=.78+Math.max(0,c)*.32;
+    ankleL=-.20;
+    ankleR=-.20;
+    torsoLean=.27;
   }else if(isJumping){
     armL=-.38;
     armR=-.38;
@@ -538,7 +540,7 @@ function animateRig(dt,moveAmount,isRunning,isJumping,isClimbing,isCrouching=fal
   chest.rotation.x=dampAngle(chest.rotation.x,torsoLean*.55,dt);
 
   const bounce=(moving&&!isJumping&&!isClimbing&&!isCrouching)?Math.abs(cycle)*.025:0;
-  const crouchY=isCrouching?-.32:-.05;
+  const crouchY=isCrouching?-.52:-.05;
   rigRoot.position.y=dampAngle(rigRoot.position.y,crouchY+bounce,dt,16);
 }
 
@@ -597,8 +599,9 @@ canvas.addEventListener('wheel',e=>{
 
 function updateCamera(dt){
   const cp=Math.cos(camPitch);
+  const cameraCrouching=!!(keys.ControlLeft||keys.ControlRight||keys.KeyC);
   if(firstPerson){
-    const eye=player.position.add(new BABYLON.Vector3(0,1.48,0));
+    const eye=player.position.add(new BABYLON.Vector3(0,cameraCrouching?1.05:1.48,0));
     const look=new BABYLON.Vector3(
       -Math.sin(camYaw)*cp,
       -Math.sin(camPitch),
@@ -611,7 +614,7 @@ function updateCamera(dt){
     return;
   }
 
-  const target=player.position.add(new BABYLON.Vector3(0,.9,0));
+  const target=player.position.add(new BABYLON.Vector3(0,cameraCrouching?.58:.9,0));
   const desired=new BABYLON.Vector3(
     target.x+Math.sin(camYaw)*cp*camDistance,
     target.y+1.25+Math.sin(camPitch)*camDistance,
@@ -665,6 +668,79 @@ function forwardFlat(){
 function rightFlat(){
   return new BABYLON.Vector3(Math.cos(camYaw),0,Math.sin(camYaw)).normalize();
 }
+function activeGamepad(){
+  const pads=navigator.getGamepads?.()||[];
+  for(const p of pads)if(p&&p.connected)return p;
+  return null;
+}
+function getMoveIntentWorld(){
+  const f=forwardFlat(),r=rightFlat();
+  let wish=BABYLON.Vector3.Zero();
+  if(keys.KeyW||keys.ArrowUp)wish.addInPlace(f);
+  if(keys.KeyS||keys.ArrowDown)wish.subtractInPlace(f);
+  if(keys.KeyD||keys.ArrowRight)wish.addInPlace(r);
+  if(keys.KeyA||keys.ArrowLeft)wish.subtractInPlace(r);
+
+  const pad=activeGamepad();
+  if(pad&&pad.axes?.length>=2){
+    const ax=Math.abs(pad.axes[0])>.16?pad.axes[0]:0;
+    const ay=Math.abs(pad.axes[1])>.16?pad.axes[1]:0;
+    if(ax||ay){
+      wish.addInPlace(r.scale(ax));
+      wish.addInPlace(f.scale(-ay));
+    }
+  }
+  if(wish.lengthSquared()>1)wish.normalize();
+  return wish;
+}
+function startDirectionalRoll(direction){
+  if(gameplayLocked||rollAnim.active||parkourState!=='normal'||!grounded)return false;
+  let dir=direction?.clone?.()||getMoveIntentWorld();
+  dir.y=0;
+  if(dir.lengthSquared()<.01)dir=playerForward();
+  if(dir.lengthSquared()<.01)return false;
+  dir.normalize();
+
+  rollAnim.active=true;
+  rollAnim.timer=0;
+  rollAnim.dir.copyFrom(dir);
+  moveVelocity.set(0,0,0);
+  vy=0;
+  player.rotation.y=Math.atan2(dir.x,dir.z);
+  return true;
+}
+function updateDirectionalRoll(dt){
+  if(!rollAnim.active)return false;
+  rollAnim.timer+=dt;
+  const t=BABYLON.Scalar.Clamp(rollAnim.timer/rollAnim.duration,0,1);
+  const tuck=Math.sin(Math.PI*t);
+  const speed=8.6*(1-t*.55);
+  player.moveWithCollisions(rollAnim.dir.scale(speed*dt));
+
+  // Whole rig rolls while the collision capsule stays upright/stable.
+  rigRoot.rotation.y=Math.PI;
+  rigRoot.rotation.x=t*Math.PI*2;
+  rigRoot.position.y=-.20-.34*tuck;
+  torso.rotation.x=.46*tuck;
+  chest.rotation.x=.32*tuck;
+  lShoulder.rotation.x=-1.15*tuck;
+  rShoulder.rotation.x=-1.15*tuck;
+  lElbow.rotation.x=-.92*tuck;
+  rElbow.rotation.x=-.92*tuck;
+  lHip.rotation.x=.58*tuck;
+  rHip.rotation.x=.58*tuck;
+  lKnee.rotation.x=1.28*tuck;
+  rKnee.rotation.x=1.28*tuck;
+
+  if(t>=1){
+    rollAnim.active=false;
+    rollAnim.timer=0;
+    rigRoot.rotation.x=0;
+    rigRoot.position.y=-.05;
+  }
+  return true;
+}
+
 function playerForward(){
   return new BABYLON.Vector3(
     -Math.sin(player.rotation.y),
@@ -888,7 +964,7 @@ scene.onBeforeRenderObservable.add(()=>{
 
   // Small camera feedback for speed/landing without changing controls.
   const sprintingNow=!!(keys.ShiftLeft||keys.ShiftRight)||mobileInput().magnitude>.88;
-  const targetFov=firstPerson?.92:(sprintingNow&&parkourState==='normal'?.91:.84);
+  const targetFov=firstPerson?.92:(combatAnim.timer>0?.80:(sprintingNow&&parkourState==='normal'?.91:.84));
   camera.fov=BABYLON.Scalar.Lerp(camera.fov,targetFov,1-Math.exp(-6*dt));
 
   const down=rayDown(1.34);
@@ -910,17 +986,13 @@ scene.onBeforeRenderObservable.add(()=>{
   }
   wasGrounded=grounded;
 
-  const f=forwardFlat(),r=rightFlat();
-  const mobile=mobileInput();
-  let wish=BABYLON.Vector3.Zero();
-  if(keys.KeyW||keys.ArrowUp)wish.addInPlace(f);
-  if(keys.KeyS||keys.ArrowDown)wish.subtractInPlace(f);
-  if(keys.KeyD||keys.ArrowRight)wish.addInPlace(r);
-  if(keys.KeyA||keys.ArrowLeft)wish.subtractInPlace(r);
+  if(rollAnim.active){
+    updateDirectionalRoll(dt);
+    lastPlayerPos.copyFrom(player.position);
+    return;
+  }
 
-  // True analog movement on touch devices.
-  if(Math.abs(mobile.y)>.01)wish.addInPlace(f.scale(mobile.y));
-  if(Math.abs(mobile.x)>.01)wish.addInPlace(r.scale(mobile.x));
+  let wish=getMoveIntentWorld();
 
   const crouching=!!(keys.ControlLeft||keys.ControlRight||keys.KeyC||mobile.crouch);
   const running=!crouching&&(!!(keys.ShiftLeft||keys.ShiftRight)||mobile.magnitude>.88);
@@ -1033,27 +1105,64 @@ scene.onBeforeRenderObservable.add(()=>{
   const stableCrouch=crouching&&parkourState==='normal'&&grounded;
   animateRig(dt,moveAmount,running&&moveAmount>.1,isJumping,isClimbing,stableCrouch);
 
-  // Procedural combat swing layered on top of locomotion.
+  // Cinematic full-body combat: anticipation -> impact -> recovery.
   if(combatAnim.timer>0){
     combatAnim.timer=Math.max(0,combatAnim.timer-dt);
     const t=1-combatAnim.timer/combatAnim.duration;
-    const swing=Math.sin(Math.PI*Math.min(1,t));
+    const side=combatAnim.side;
+    const anticipation=t<.28?Math.sin((t/.28)*Math.PI*.5):1;
+    const impact=t<.28?0:(t<.58?Math.sin(((t-.28)/.30)*Math.PI):Math.max(0,1-(t-.58)/.42));
+    const recovery=t<.58?0:BABYLON.Scalar.Clamp((t-.58)/.42,0,1);
+
+    const attackShoulder=side>0?rShoulder:lShoulder;
+    const otherShoulder=side>0?lShoulder:rShoulder;
+    const attackElbow=side>0?rElbow:lElbow;
+
     if(combatAnim.type==='heavy'){
-      rShoulder.rotation.x=-1.65*swing;
-      rShoulder.rotation.z=-.75*swing;
-      rElbow.rotation.x=-.65*swing;
-      torso.rotation.y=-.45*swing;
-      lShoulder.rotation.x=.35*swing;
+      const wind=anticipation;
+      const smash=Math.sin(Math.PI*BABYLON.Scalar.Clamp((t-.24)/.54,0,1));
+      torso.rotation.y=-side*(.58*wind-1.05*smash);
+      chest.rotation.y=-side*(.28*wind-.58*smash);
+      pelvis.rotation.y=side*(.22*wind-.42*smash);
+      torso.rotation.x=.18*wind+.34*smash;
+      attackShoulder.rotation.x=-1.50*wind-.82*smash;
+      attackShoulder.rotation.z=-side*(.90*wind+1.05*smash);
+      attackElbow.rotation.x=-.82*wind+.18*smash;
+      otherShoulder.rotation.x=.62*wind-.28*smash;
+      lHip.rotation.x+=.28*wind;
+      rHip.rotation.x+=.28*wind;
+      lKnee.rotation.x+=.34*wind;
+      rKnee.rotation.x+=.34*wind;
+      rigRoot.position.y-=.10*wind;
+      rigRoot.position.z=.18*smash;
     }else{
-      rShoulder.rotation.x=-1.05*swing;
-      rShoulder.rotation.z=-1.0*swing;
-      rElbow.rotation.x=-.35*swing;
-      torso.rotation.y=-.28*swing;
-      lShoulder.rotation.x=.18*swing;
+      const snap=impact;
+      torso.rotation.y=side*(-.34*anticipation+.78*snap);
+      chest.rotation.y=side*(-.15*anticipation+.34*snap);
+      pelvis.rotation.y=-side*(-.12*anticipation+.26*snap);
+      torso.rotation.x=.08*anticipation+.14*snap;
+      attackShoulder.rotation.x=-1.12*anticipation-1.10*snap;
+      attackShoulder.rotation.z=-side*(.72*anticipation+1.18*snap);
+      attackElbow.rotation.x=-.58*anticipation+.22*snap;
+      otherShoulder.rotation.x=.34*anticipation-.24*snap;
+      const planted=side>0?lHip:rHip;
+      const driving=side>0?rHip:lHip;
+      planted.rotation.x+=.10*anticipation;
+      driving.rotation.x-=.20*snap;
+      rigRoot.position.z=.12*snap;
     }
+
+    if(grounded&&impact>.25){
+      player.moveWithCollisions(playerForward().scale((combatAnim.type==='heavy'?.95:.60)*impact*dt));
+    }
+    if(recovery>.75)rigRoot.position.z=BABYLON.Scalar.Lerp(rigRoot.position.z,0,.38);
   }else{
     torso.rotation.y=dampAngle(torso.rotation.y,0,dt,18);
+    chest.rotation.y=dampAngle(chest.rotation.y,0,dt,18);
+    pelvis.rotation.y=dampAngle(pelvis.rotation.y,0,dt,18);
+    lShoulder.rotation.z=dampAngle(lShoulder.rotation.z,0,dt,18);
     rShoulder.rotation.z=dampAngle(rShoulder.rotation.z,0,dt,18);
+    rigRoot.position.z=BABYLON.Scalar.Lerp(rigRoot.position.z,0,1-Math.exp(-18*dt));
   }
 
   // Extra readability for landing and mantle.
@@ -1125,9 +1234,21 @@ window.UP3D={
       -Math.sin(player.rotation.y),0,-Math.cos(player.rotation.y)
     ).normalize();
   },
+  getMoveIntent(){
+    const d=getMoveIntentWorld();
+    return d.lengthSquared()>.01?d.normalize():playerForward();
+  },
+  startRoll(direction){
+    return startDirectionalRoll(direction);
+  },
+  isRolling(){
+    return rollAnim.active;
+  },
   playAttack(type='light'){
     combatAnim.type=type;
-    combatAnim.duration=type==='heavy'?.46:.28;
+    combatAnim.combo=(combatAnim.combo+1)%4;
+    combatAnim.side*=-1;
+    combatAnim.duration=type==='heavy'?.72:.42;
     combatAnim.timer=combatAnim.duration;
   },
   resetMotion(){
@@ -1136,6 +1257,9 @@ window.UP3D={
     parkourState='normal';
     activeObstacle=null;
     parkourCooldown=.2;
+    rollAnim.active=false;
+    rollAnim.timer=0;
+    rigRoot.rotation.x=0;
   }
 };
 
