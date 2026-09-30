@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Under Pressure 3D Prototype</title>
-  <link rel="stylesheet" href="./3d-prototype/style.css?v=33" />
+  <link rel="stylesheet" href="./3d-prototype/style.css?v=35" />
 </head>
 <body>
   <div id="hud">
@@ -59,9 +59,31 @@
     </div>
   </div>
 
+
+  <div id="mobileControls" aria-hidden="true">
+    <div id="movePad" class="touchZone">
+      <div class="stickBase"><div id="moveKnob"></div></div>
+    </div>
+    <div id="lookPad" class="touchZone"></div>
+
+    <div id="mobileTopActions">
+      <button id="mView" class="mBtn small">1P</button>
+      <button id="mCrouch" class="mBtn small">AGACHAR</button>
+    </div>
+
+    <div id="mobileActions">
+      <button id="mHeavy" class="mBtn action heavy">PESADO</button>
+      <button id="mAttack" class="mBtn action attack">ATACAR</button>
+      <button id="mDodge" class="mBtn action dodge">ROLAR</button>
+      <button id="mJump" class="mBtn action jump">PULAR</button>
+      <button id="mInteract" class="mBtn action interact">AÇÃO</button>
+    </div>
+  </div>
+
   <canvas id="renderCanvas"></canvas>
   <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="./3d-prototype/main.js?v=33"></script>
-  <script src="./3d-prototype/game-systems.js?v=33"></script>
+  <script src="./3d-prototype/main.js?v=35"></script>
+  <script src="./3d-prototype/game-systems.js?v=35"></script>
+  <script src="./3d-prototype/mobile-controls.js?v=35"></script>
 </body>
 </html>
