@@ -402,33 +402,71 @@ class MapScene extends Phaser.Scene{
     this.world=this.add.container(0,0);
     this.ui=this.add.container(0,0);
 
-    // Expanded temporary world: reuse the existing environment as three connected districts.
+    // Expanded temporary world. On mobile we only instantiate the district
+    // needed for the current run to keep Safari memory usage low.
     this.worldW=GW*2; this.worldH=GH*2;
-    const bg1=this.add.image(GW/2,GH/2,'map');
-    const bg2=this.add.image(GW+GW/2,GH/2,'map').setFlipX(true).setTint(0x6fb7ff);
-    const bg3=this.add.image(GW+GW/2,GH+GH/2,'map').setFlipY(true).setTint(0xd982ff);
-    const bg4=this.add.image(GW/2,GH+GH/2,'map').setFlipX(true).setFlipY(true).setTint(0x63d6a4);
 
-    // Color grading overlays so each district reads as a different neighborhood.
-    const grade2=this.add.rectangle(GW+GW/2,GH/2,GW,GH,0x1266a8,.14).setBlendMode(Phaser.BlendModes.ADD);
-    const grade3=this.add.rectangle(GW+GW/2,GH+GH/2,GW,GH,0x8c27b8,.15).setBlendMode(Phaser.BlendModes.ADD);
-    const grade4=this.add.rectangle(GW/2,GH+GH/2,GW,GH,0x167b62,.13).setBlendMode(Phaser.BlendModes.ADD);
-    this.world.add([bg1,bg2,bg3,bg4,grade2,grade3,grade4]);
+    // Determine current phase early so mobile can load just the active sector.
+    this.phase2=P.phase1Complete&&!P.phase2Complete;
+    this.phase3=P.phase2Complete&&!P.phase3Complete;
+    this.activePhase=this.phase3?3:(this.phase2?2:1);
 
-    // Mission walls. These are temporary reused assets until bespoke districts are generated.
-    this.wall1=this.add.image(1245,408,'clean_wall').setDisplaySize(520,255).setDepth(1);
-    this.wall2=this.add.image(GW+505,330,'clean_wall').setDisplaySize(440,235).setDepth(1).setFlipX(true);
-    this.wall3=this.add.image(GW+1180,GH+360,'clean_wall').setDisplaySize(500,250).setDepth(1).setTint(0xd7cadf);
-    this.world.add([this.wall1,this.wall2,this.wall3]);
-    if(P.phase1Complete)this.addFinishedGraffiti();
-    if(P.phase2Complete)this.addSecondFinishedGraffiti();
-    if(P.phase3Complete)this.addThirdFinishedGraffiti();
+    const addDistrict=(phase)=>{
+      if(phase===1){
+        const bg=this.add.image(GW/2,GH/2,'map');
+        this.world.add(bg);
+      }else if(phase===2){
+        const bg=this.add.image(GW+GW/2,GH/2,'map').setFlipX(true).setTint(0x6fb7ff);
+        this.world.add(bg);
+        if(!IS_TOUCH){
+          const grade=this.add.rectangle(GW+GW/2,GH/2,GW,GH,0x1266a8,.14).setBlendMode(Phaser.BlendModes.ADD);
+          this.world.add(grade);
+        }
+      }else{
+        const bg=this.add.image(GW+GW/2,GH+GH/2,'map').setFlipY(true).setTint(0xd982ff);
+        this.world.add(bg);
+        if(!IS_TOUCH){
+          const grade=this.add.rectangle(GW+GW/2,GH+GH/2,GW,GH,0x8c27b8,.15).setBlendMode(Phaser.BlendModes.ADD);
+          this.world.add(grade);
+        }
+      }
+    };
 
-    const sticker=this.add.image(1480,440,'monkey_sticker').setScale(.052).setAlpha(.35).setAngle(-7).setDepth(2);
-    this.world.add(sticker);
-    const sticker2=this.add.image(GW+1340,500,'monkey_sticker').setScale(.048).setAlpha(.28).setAngle(8).setDepth(2);
-    const sticker3=this.add.image(GW+980,GH+450,'monkey_sticker').setScale(.055).setAlpha(.25).setAngle(-12).setDepth(2);
-    this.world.add([sticker2,sticker3]);
+    if(IS_TOUCH){
+      addDistrict(this.activePhase);
+    }else{
+      addDistrict(1);addDistrict(2);addDistrict(3);
+      const bg4=this.add.image(GW/2,GH+GH/2,'map').setFlipX(true).setFlipY(true).setTint(0x63d6a4);
+      const grade4=this.add.rectangle(GW/2,GH+GH/2,GW,GH,0x167b62,.13).setBlendMode(Phaser.BlendModes.ADD);
+      this.world.add([bg4,grade4]);
+    }
+
+    // Mission walls. Mobile keeps only the current wall.
+    const makeWall1=()=>this.add.image(1245,408,'clean_wall').setDisplaySize(520,255).setDepth(1);
+    const makeWall2=()=>this.add.image(GW+505,330,'clean_wall').setDisplaySize(440,235).setDepth(1).setFlipX(true);
+    const makeWall3=()=>this.add.image(GW+1180,GH+360,'clean_wall').setDisplaySize(500,250).setDepth(1).setTint(0xd7cadf);
+
+    if(IS_TOUCH){
+      if(this.activePhase===1){this.wall1=makeWall1();this.world.add(this.wall1)}
+      if(this.activePhase===2){this.wall2=makeWall2();this.world.add(this.wall2)}
+      if(this.activePhase===3){this.wall3=makeWall3();this.world.add(this.wall3)}
+      // Saved graffiti data URLs are intentionally not decoded on mobile map load.
+      // They remain saved and are still used on desktop/replay.
+    }else{
+      this.wall1=makeWall1();this.wall2=makeWall2();this.wall3=makeWall3();
+      this.world.add([this.wall1,this.wall2,this.wall3]);
+      if(P.phase1Complete)this.addFinishedGraffiti();
+      if(P.phase2Complete)this.addSecondFinishedGraffiti();
+      if(P.phase3Complete)this.addThirdFinishedGraffiti();
+    }
+
+    if(!IS_TOUCH){
+      const sticker=this.add.image(1480,440,'monkey_sticker').setScale(.052).setAlpha(.35).setAngle(-7).setDepth(2);
+      this.world.add(sticker);
+      const sticker2=this.add.image(GW+1340,500,'monkey_sticker').setScale(.048).setAlpha(.28).setAngle(8).setDepth(2);
+      const sticker3=this.add.image(GW+980,GH+450,'monkey_sticker').setScale(.055).setAlpha(.25).setAngle(-12).setDepth(2);
+      this.world.add([sticker2,sticker3]);
+    }
 
     this.shadow=this.add.ellipse(790,742,58,17,0x000000,.4).setDepth(100);
     this.player=this.add.sprite(790,735,'game_idle_front').setOrigin(.5,.92).setScale(.47).setDepth(101);
@@ -444,11 +482,14 @@ class MapScene extends Phaser.Scene{
     ];
     this.blockers=[];
     const addTileRects=(ox,oy)=>baseRects.forEach(r=>this.blockers.push(new Phaser.Geom.Rectangle(r[0]+ox,r[1]+oy,r[2],r[3])));
-    addTileRects(0,0);addTileRects(GW,0);addTileRects(0,GH);addTileRects(GW,GH);
+    if(IS_TOUCH){
+      if(this.activePhase===1)addTileRects(0,0);
+      else if(this.activePhase===2)addTileRects(GW,0);
+      else addTileRects(GW,GH);
+    }else{
+      addTileRects(0,0);addTileRects(GW,0);addTileRects(0,GH);addTileRects(GW,GH);
+    }
 
-    this.phase2=P.phase1Complete&&!P.phase2Complete;
-    this.phase3=P.phase2Complete&&!P.phase3Complete;
-    this.activePhase=this.phase3?3:(this.phase2?2:1);
     const phaseStarts={
       1:{x:790,y:735},
       2:{x:GW+120,y:735},
@@ -500,8 +541,12 @@ class MapScene extends Phaser.Scene{
     this.input.keyboard.on('keydown-E',()=>this.tryPaint());
 
     const main=this.cameras.main;
-    main.setBounds(0,0,this.worldW,this.worldH);main.startFollow(this.player,true,.075,.075);main.setZoom(1.12);
-    this.uiCam=this.cameras.add(0,0,GW,GH);this.uiCam.ignore(this.world);main.ignore(this.ui);
+    main.setBounds(0,0,this.worldW,this.worldH);main.startFollow(this.player,true,.075,.075);main.setZoom(IS_TOUCH?1.06:1.12);
+    if(IS_TOUCH){
+      this.ui.setScrollFactor(0).setDepth(30000);
+    }else{
+      this.uiCam=this.cameras.add(0,0,GW,GH);this.uiCam.ignore(this.world);main.ignore(this.ui);
+    }
 
     this.createStealthGuards();
     this.createCollectibles();
