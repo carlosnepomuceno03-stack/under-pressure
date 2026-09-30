@@ -29,7 +29,10 @@
     ink:document.getElementById('inkBar'),
     inkText:document.getElementById('inkText'),
     rep:document.getElementById('repText'),
-    shake:document.getElementById('shakeCan')
+    shake:document.getElementById('shakeCan'),
+    gallery:document.getElementById('artGallery'),
+    galleryList:document.getElementById('artGalleryList'),
+    founderCount:document.getElementById('founderCount')
   };
 
   const STATE={
@@ -49,8 +52,35 @@
     combatTarget:null,
     attacking:false,
     dodging:false,
-    crouching:false
+    crouching:false,
+    founders:new Set(),
+    selectedArt:'nepo_throw'
   };
+
+  const ART_CATALOG=[
+    {id:'nepo_throw',name:'NEPO THROW',type:'THROW-UP',difficulty:1,rep:1.00,desc:'Rápido, simples e direto.'},
+    {id:'gate_piece',name:'PORTÃO 26',type:'PIECE',difficulty:3,rep:1.25,desc:'Peça colorida com preenchimento grande.'},
+    {id:'alien_jam',name:'ALIEN JAM',type:'MURAL',difficulty:4,rep:1.45,desc:'Peça grande com personagem alien.'},
+    {id:'crew_wall',name:'CREW WALL',type:'MURAL',difficulty:5,rep:1.65,desc:'Mural pesado de crew.'},
+    {id:'blackbook',name:'BLACKBOOK WILD',type:'PIECE',difficulty:4,rep:1.40,desc:'Wildstyle inspirado em sketch de blackbook.'}
+  ];
+
+  function renderGallery(){
+    if(!ui.galleryList)return;
+    ui.galleryList.innerHTML='';
+    for(const art of ART_CATALOG){
+      const b=document.createElement('button');
+      b.className='artCard'+(STATE.selectedArt===art.id?' active':'');
+      b.dataset.art=art.id;
+      b.innerHTML='<strong>'+art.name+'</strong><span>'+art.type+' • DIF '+art.difficulty+'</span><small>'+art.desc+'</small>';
+      b.addEventListener('click',()=>{
+        STATE.selectedArt=art.id;
+        renderGallery();
+        toast(art.name+' SELECIONADO',900);
+      });
+      ui.galleryList.appendChild(b);
+    }
+  }
 
   function toast(msg,ms=1700){
     if(!ui.toast)return;
@@ -72,6 +102,7 @@
     if(ui.alertWrap)ui.alertWrap.dataset.state=STATE.alertState;
     if(ui.alertText)ui.alertText.textContent=STATE.alertState==='ALERT'?'PERSEGUIÇÃO':STATE.alertState==='SUSPICIOUS'?'SUSPEITO':'OCULTO';
     if(ui.collect)ui.collect.textContent='ITENS '+STATE.collected.size+'/'+STATE.totalCollectibles;
+    if(ui.founderCount)ui.founderCount.textContent='FUNDADORES '+STATE.founders.size+'/4';
     const stealth=G.getStealthState?.()||{crouching:false,running:false};
     STATE.crouching=!!stealth.crouching;
     if(ui.stealth)ui.stealth.textContent=stealth.crouching?'AGACHADO • SILENCIOSO':(stealth.running?'CORRENDO • BARULHENTO':'EM PÉ');
@@ -357,6 +388,21 @@
     return {...d,root,mesh:can,t:Math.random()*4,collected:false};
   });
 
+  // founder relics
+  const founderDefs=[
+    {name:'NEPO',pos:[-20,1.0,18]},
+    {name:'TRANE',pos:[6,1.0,-14]},
+    {name:'NOROK',pos:[18,7.5,8]},
+    {name:'ICON',pos:[30,9.2,-3]}
+  ];
+  const founderMat=G.makeEmissive('founderRelic','#ffd34e',.9);
+  const founderRelics=founderDefs.map((d,i)=>{
+    const r=BABYLON.MeshBuilder.CreateTorus('founder_'+d.name,{diameter:.8,thickness:.12,tessellation:20},scene);
+    r.position.set(d.pos[0],d.pos[1],d.pos[2]);r.material=founderMat;r.rotation.x=Math.PI/2;
+    r.checkCollisions=false;r.isPickable=false;
+    return {...d,mesh:r,t:i};
+  });
+
   // graffiti interaction point
   const graffitiPoint=new BABYLON.Vector3(26,1.1,-24.4);
   const graffitiMarker=BABYLON.MeshBuilder.CreateTorus('graffitiMarker',{diameter:2.2,thickness:.10,tessellation:30},scene);
@@ -369,6 +415,7 @@
     G.setGameplayLocked(true);
     if(document.pointerLockElement)document.exitPointerLock();
     if(ui.graffiti)ui.graffiti.classList.add('show');
+    renderGallery();
     initPaintCanvas();
     setInteract('');
   }
@@ -624,6 +671,22 @@
       }
     }
   }
+  function updateFounders(dt){
+    if(typeof founderRelics==='undefined')return;
+    for(const f of founderRelics){
+      if(!f.mesh.isEnabled())continue;
+      f.t+=dt;
+      f.mesh.rotation.z+=dt*1.2;
+      f.mesh.position.y+=Math.sin(f.t*2)*.002;
+      if(BABYLON.Vector3.Distance(player.position,f.mesh.position)<1.1){
+        f.mesh.setEnabled(false);
+        STATE.founders.add(f.name);
+        toast('FUNDADOR TDG • '+f.name,1500);
+        if(STATE.founders.size===4)toast('4 FUNDADORES ENCONTRADOS • MURAL TDG LIBERADO',2200);
+      }
+    }
+  }
+
   function updateMission(){
     if(STATE.missionComplete)return;
     const d=BABYLON.Vector3.Distance(player.position,graffitiPoint);
@@ -666,6 +729,7 @@
   scene.onBeforeRenderObservable.add(()=>{
     const dt=Math.min(.033,G.engine.getDeltaTime()/1000);
     updatePickups(dt);
+    updateFounders(dt);
     updateMission();
     updateAlert(dt);
     graffitiMarker.rotation.z+=dt*.7;
