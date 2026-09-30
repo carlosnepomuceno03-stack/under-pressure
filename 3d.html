@@ -4,28 +4,106 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Under Pressure 3D Prototype</title>
-  <link rel="stylesheet" href="./3d-prototype/style.css?v=43" />
+  <link rel="stylesheet" href="./3d-prototype/style.css?v=44" />
 </head>
 <body>
+  <div id="startMenu" class="menuScreen show">
+    <div class="menuShade"></div>
+    <div class="mainMenuPanel">
+      <div class="menuLogo"><span>UNDER</span><b>PRESSURE</b><em>3D</em></div>
+      <button id="menuContinue" class="menuPrimary">CONTINUAR</button>
+      <button id="menuNew">NOVO JOGO</button>
+      <button id="menuMissions">MISSÕES</button>
+      <button id="menuCrew">CREW</button>
+      <button id="menuSettings">CONFIGURAÇÕES</button>
+      <div class="menuTag">CORRE • EXPLORE • CONQUISTA</div>
+    </div>
+  </div>
+
+  <div id="pauseMenu" class="pauseScreen">
+    <div class="pausePanel">
+      <div class="pauseTitle">PAUSE</div>
+      <button id="pauseContinue" class="menuPrimary">CONTINUAR</button>
+      <button id="pauseRestart">REINICIAR</button>
+      <button id="pauseSettings">CONFIGURAÇÕES</button>
+      <button id="pauseMenuBack">MENU PRINCIPAL</button>
+    </div>
+  </div>
+
+  <div id="settingsPanel" class="modalPanel">
+    <div class="modalCard">
+      <button class="modalClose" data-close-modal>×</button>
+      <h2>CONFIGURAÇÕES</h2>
+      <label>TRILHA SONORA <input id="musicVolume" type="range" min="0" max="1" step=".01" value=".55"></label>
+      <label>SFX <input id="sfxVolume" type="range" min="0" max="1" step=".01" value=".75"></label>
+      <p>Trilha atual: instrumental original — rap brasileiro / boom bap.</p>
+    </div>
+  </div>
+
+  <div id="missionsPanel" class="modalPanel">
+    <div class="modalCard">
+      <button class="modalClose" data-close-modal>×</button>
+      <h2>MISSÕES</h2>
+      <div class="missionCard active"><b>UNDER PRESSURE</b><span>Chegue ao mural e conclua a peça sem ser pego.</span></div>
+      <div class="missionCard locked"><b>???</b><span>Em breve.</span></div>
+    </div>
+  </div>
+
+  <div id="crewPanel" class="modalPanel">
+    <div class="modalCard">
+      <button class="modalClose" data-close-modal>×</button>
+      <h2>TDG CREW</h2>
+      <p>NEPO • TRANE • NOROK • ICON • GOM • MM • OFF • PRIKS • ANJO • SINUK • ASKA • TALYN • PATEK • ERRARO • RODEF • BOLA</p>
+      <small>Fundadores: NEPO • TRANE • NOROK • ICON</small>
+    </div>
+  </div>
+
   <div id="hud">
-    <div class="brandRow"><div class="brand">UNDER PRESSURE 3D</div><button id="viewToggle">1P</button></div>
-    <div class="hint">WASD/analógico = andar • Shift = correr • Ctrl/C = agachar • Espaço = pular/escalar • E = ataque • R = pesado • Q/B = rolamento • V = câmera</div>
-  <div id="objective"><span>OBJETIVO</span> <b id="objectiveText">Alcance o mural pelos telhados, rua ou campão</b></div>
-  <div id="statusRow">
-    <div id="alertWrap" data-state="SAFE"><span id="alertText">OCULTO</span><i><b id="alertBar"></b></i></div>
-    <div id="collectibles">ITENS 0/4</div><div id="founderCount">FUNDADORES 0/4</div><div id="stealthState">EM PÉ</div>
+    <div id="objective">
+      <div class="objectiveLabel">♛ OBJETIVO</div>
+      <div class="objectiveMission">MISSÃO: <b>UNDER PRESSURE</b></div>
+      <b id="objectiveText">Alcance o mural pelos telhados, rua ou campão</b>
+    </div>
+    <div id="statusRow">
+      <div id="alertWrap" data-state="SAFE"><span id="alertText">OCULTO</span><i><b id="alertBar"></b></i></div>
+      <div id="stealthState">EM PÉ</div>
+    </div>
+    <div id="buildTag">...</div>
+    <div id="mouseHint">CLIQUE NO JOGO PARA CAPTURAR O MOUSE</div>
   </div>
-  <div id="buildTag">...</div>
-  <div id="mouseHint">CLIQUE NO JOGO PARA CAPTURAR O MOUSE</div>
+
+  <div id="topStats">
+    <div class="statBadge spray">SPRAYS <b id="spraysHud">0/4</b></div>
+    <div class="statBadge crew">CREW <b id="crewHud">0/4</b></div>
+    <div class="statBadge rep">REP <b id="repHud">0</b></div>
+    <button id="pauseButton" aria-label="Pausar">Ⅱ</button>
   </div>
+
+  <div id="playerVitals">
+    <div class="vitalRow life"><span>♥ VIDA</span><i><b id="hpBar"></b></i></div>
+    <div class="vitalRow vigor"><span>⚡ VIGOR</span><i><b id="vigorBar"></b></i></div>
+  </div>
+
   <div id="combatHud">
-    <div class="combatLine"><span>HP</span><i><b id="hpBar"></b></i></div>
     <div class="combatLine enemy"><span>GUARDA</span><i><b id="enemyBar"></b></i></div>
     <div id="comboText">COMBO x0</div>
   </div>
+
   <div id="interactPrompt"></div>
   <div id="toast"></div>
-  <div id="missionComplete"><div><strong>MISSÃO CONCLUÍDA</strong><span>Fase 1 • Under Pressure</span></div></div>
+
+  <div id="missionComplete">
+    <div class="missionCompleteCard">
+      <button id="missionClose" class="missionX">×</button>
+      <strong>MISSÃO<br><em>CONCLUÍDA</em></strong>
+      <span>REP 0 • RANK C</span>
+      <p>Você completou a missão! Continue explorando a quebrada.</p>
+      <div class="missionCompleteActions">
+        <button id="missionReplay">JOGAR DE NOVO</button>
+        <button id="missionContinue">CONTINUAR</button>
+      </div>
+    </div>
+  </div>
 
   <div id="graffitiMode">
     <div class="paintPanel">
@@ -82,8 +160,10 @@
 
   <canvas id="renderCanvas"></canvas>
   <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="./3d-prototype/main.js?v=43"></script>
-  <script src="./3d-prototype/game-systems.js?v=43"></script>
-  <script src="./3d-prototype/mobile-controls.js?v=43"></script>
+  <script src="./3d-prototype/main.js?v=44"></script>
+  <script src="./3d-prototype/game-systems.js?v=44"></script>
+  <script src="./3d-prototype/mobile-controls.js?v=44"></script>
+  <script src="./3d-prototype/audio-system.js?v=44"></script>
+  <script src="./3d-prototype/ui-shell.js?v=44"></script>
 </body>
 </html>
