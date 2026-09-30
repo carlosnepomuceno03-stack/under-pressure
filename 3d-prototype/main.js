@@ -96,16 +96,23 @@ camera.lowerRadiusLimit=5.5;camera.upperRadiusLimit=10;
 camera.lowerBetaLimit=.7;camera.upperBetaLimit=1.35;
 camera.lockedTarget=player;
 
-// PC camera: true mouse-look without clicking or dragging.
-// We do not attach Babylon's default pointer controls because those require drag.
-let mouseLook=true;
-canvas.addEventListener('mouseenter',()=>mouseLook=true);
-canvas.addEventListener('mouseleave',()=>mouseLook=false);
-canvas.addEventListener('mousemove',e=>{
-  if(!mouseLook)return;
-  camera.alpha-=e.movementX*.0042;
-  camera.beta=BABYLON.Scalar.Clamp(camera.beta+e.movementY*.0032,.72,1.30);
+// PC camera: rotate from pointer movement anywhere over the page.
+let lastMouseX=null,lastMouseY=null;
+document.addEventListener('pointermove',e=>{
+  if(e.pointerType&&e.pointerType!=='mouse')return;
+  if(lastMouseX===null){lastMouseX=e.clientX;lastMouseY=e.clientY;return;}
+  const dx=e.clientX-lastMouseX;
+  const dy=e.clientY-lastMouseY;
+  lastMouseX=e.clientX;lastMouseY=e.clientY;
+
+  // Ignore huge jumps when pointer re-enters the browser window.
+  if(Math.abs(dx)>120||Math.abs(dy)>120)return;
+
+  camera.alpha-=dx*.006;
+  camera.beta=BABYLON.Scalar.Clamp(camera.beta+dy*.0045,.72,1.30);
 });
+window.addEventListener('blur',()=>{lastMouseX=null;lastMouseY=null});
+document.addEventListener('mouseleave',()=>{lastMouseX=null;lastMouseY=null});
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
   camera.radius=BABYLON.Scalar.Clamp(camera.radius+Math.sign(e.deltaY)*.55,5.5,10);
