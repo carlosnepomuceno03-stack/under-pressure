@@ -928,7 +928,8 @@ class MobileMap extends Phaser.Scene{
     addOrientationHint(this);
 
     const progressionPhase=P.phase3Complete?3:(P.phase2Complete?3:(P.phase1Complete?2:1));
-    this.phase=P.mobileViewPhase||progressionPhase;
+    const savedMobilePhase=Number(P.mobileViewPhase);
+    this.phase=(savedMobilePhase>=1&&savedMobilePhase<=3)?savedMobilePhase:progressionPhase;
     this.phaseDone=this.phase===1?P.phase1Complete:(this.phase===2?P.phase2Complete:P.phase3Complete);
     this.worldW=GW;this.worldH=GH;
 
@@ -1004,7 +1005,12 @@ class MobileMap extends Phaser.Scene{
       const next=btn(this,GW-670,GH-44,200,52,'PRÓXIMA FASE',YELLOW,'#111',14);
       this.ui.add([next.bg,next.tx]);
       next.on('pointerdown',()=>{
-        P.mobileViewPhase=null;SAVE.set(P);this.scene.restart();
+        const nextPhase=Math.min(3,this.phase+1);
+        P.mobileViewPhase=nextPhase;
+        P.phase=nextPhase;
+        SAVE.set(P);
+        AUDIO.select();
+        this.scene.start('MobileMap');
       });
     }
 
