@@ -1,34 +1,24 @@
 (()=>{
   const PATH='./3d-prototype/assets/characters/player/';
   const FILES=['player_meshy.glb','player_main.glb'];
-  const TARGET_HEIGHT=1.92;
+
+  // Exact source bounds of the Meshy file the user uploaded.
+  const MESHY_SIZE={x:.807953,y:1.898151,z:.935003};
+  const MESHY_CENTER={x:-.0036635,y:-.0018715,z:-.0025985};
+  const MESHY_TARGET_HEIGHT=2.35;
 
   function waitForGame(){
     if(window.UP3D?.scene&&window.BABYLON?.SceneLoader){
-      const kick=()=>setTimeout(init,700);
-      if('requestIdleCallback' in window)requestIdleCallback(kick,{timeout:1800});
-      else kick();
+      setTimeout(init,350);
       return;
     }
     setTimeout(waitForGame,50);
   }
 
-  function getBounds(meshes){
-    let min=new BABYLON.Vector3(Number.POSITIVE_INFINITY,Number.POSITIVE_INFINITY,Number.POSITIVE_INFINITY);
-    let max=new BABYLON.Vector3(Number.NEGATIVE_INFINITY,Number.NEGATIVE_INFINITY,Number.NEGATIVE_INFINITY);
-    let found=false;
-
-    for(const mesh of meshes){
-      if(!mesh||mesh.isDisposed?.()||mesh.name==='__root__')continue;
-      mesh.computeWorldMatrix?.(true);
-      const bi=mesh.getBoundingInfo?.();
-      if(!bi)continue;
-      const bb=bi.boundingBox;
-      min=BABYLON.Vector3.Minimize(min,bb.minimumWorld);
-      max=BABYLON.Vector3.Maximize(max,bb.maximumWorld);
-      found=true;
-    }
-    return found?{min,max,size:max.subtract(min),center:min.add(max).scale(.5)}:null;
+  function showFallback(oldRig){
+    oldRig?.setEnabled(true);
+    document.body.classList.remove('glb-player-loading','glb-player-loaded');
+    document.body.classList.add('glb-player-fallback');
   }
 
   async function init(){
@@ -38,6 +28,8 @@
     const oldRig=scene.getTransformNodeByName('rigRoot');
     const beforeLights=new Set(scene.lights);
 
+    // No flash of the old blocky character while the real model is loading.
+    oldRig?.setEnabled(false);
     document.body.classList.add('glb-player-loading');
 
     try{
@@ -56,30 +48,94 @@
       }
       if(!result)throw lastError||new Error('No player GLB available');
 
-      const importedMeshes=result.meshes||[];
-      const importedTransforms=result.transformNodes||[];
-      const importedSet=new Set([...importedMeshes,...importedTransforms]);
-
-      for(const mesh of importedMeshes){
-        if(mesh.name==='PreviewFloor'||mesh.name==='DeliveryCamera'){
-          mesh.setEnabled(false);
-          continue;
-        }
-        mesh.checkCollisions=false;
-        mesh.isPickable=false;
-        mesh.alwaysSelectAsActiveMesh=true;
-      }
+      const meshes=(result.meshes||[]).filter(m=>m&&!m.isDisposed?.());
+      const transforms=result.transformNodes||[];
 
       for(const light of [...scene.lights]){
         if(!beforeLights.has(light)&&/^Area/.test(light.name))light.dispose();
       }
 
-      const modelRoot=new BABYLON.TransformNode('UP_Player_ModelRoot',scene);
+      for(const mesh of meshes){
+        mesh.checkCollisions=false;
+        mesh.isPickable=false;
+        mesh.setEnabled(true);
+        mesh.isVisible=true;
+        mesh.visibility=1;
+        mesh.alwaysSelectAsActiveMesh=true;
+        if(mesh.material){
+          mesh.material.alpha=1;
+          mesh.material.backFaceCulling=false;
+        }
+      }
 
-      // Keep the internal hierarchy intact and only re-parent real top-level nodes.
+      const modelRoot=new BABYLON.TransformNode('UP_Player_ModelRoot',scene);
+      modelRoot.parent=player;
+      modelRoot.position.set(0,0,0);
+      modelRoot.rotationQuaternion=null;
+      modelRoot.rotation.set(0,Math.PI,0);
+      modelRoot.scaling.setAll(1);
+
+      if(loadedFile==='player_meshy.glb'){
+        // Meshy export is a single static mesh. Attach the real geometry directly
+        // to the player collider and use known source dimensions. This avoids
+        // importer/root-node bounding quirks that were making the model vanish.
+        const visual=meshes
+          .filter(m=>m.name!=='__root__'&&(m.getTotalVertices?.()||0)>0)
+          .sort((a,b)=>(b.getTotalVertices?.()||0)-(a.getTotalVertices?.()||0))[0];
+
+        if(!visual)throw new Error('Meshy geometry mesh not found');
+
+        // Detach the geometry from Babylon's generated __root__.
+        visual.parent=modelRoot;
+        visual.position.set(
+          -MESHY_CENTER.x,
+          .28-MESHY_CENTER.y,
+          -MESHY_CENTER.z
+        );
+        visual.rotationQuaternion=null;
+        visual.rotation.set(0,0,0);
+
+        const scale=MESHY_TARGET_HEIGHT/MESHY_SIZE.y;
+        visual.scaling.setAll(scale);
+
+        // Disable importer helper/root nodes, never the geometry itself.
+        for(const node of [...meshes,...transforms]){
+          if(node===visual||node===modelRoot)continue;
+          if(node.name==='__root__'||node.name==='PreviewFloor'||node.name==='DeliveryCamera'){
+            node.setEnabled?.(false);
+          }
+        }
+
+        visual.computeWorldMatrix(true);
+        const bi=visual.getBoundingInfo();
+        const bb=bi.boundingBox;
+        const worldHeight=bb.maximumWorld.y-bb.minimumWorld.y;
+
+        if(!Number.isFinite(worldHeight)||worldHeight<1||worldHeight>4){
+          throw new Error('Meshy player fitted to invalid height: '+worldHeight);
+        }
+
+        window.UP_MODEL={
+          loaded:true,
+          file:loadedFile,
+          rigged:false,
+          root:modelRoot,
+          visual,
+          scale,
+          worldHeight
+        };
+
+        document.body.classList.remove('glb-player-loading','glb-player-fallback');
+        document.body.classList.add('glb-player-loaded');
+        console.info('[Under Pressure] Meshy visual active',{scale,worldHeight});
+        return;
+      }
+
+      // Rigged fallback model pipeline.
+      const importedSet=new Set([...meshes,...transforms]);
       const topNodes=[];
-      for(const node of [...importedTransforms,...importedMeshes]){
-        if(!node||node===modelRoot)continue;
+      for(const node of [...transforms,...meshes]){
+        if(node===modelRoot)continue;
         const p=node.parent;
         if(!p||!importedSet.has(p)){
           if(!topNodes.includes(node))topNodes.push(node);
@@ -87,53 +143,12 @@
       }
       for(const node of topNodes)node.parent=modelRoot;
 
-      // First measure at source scale.
-      modelRoot.rotationQuaternion=null;
-      modelRoot.rotation.set(0,Math.PI,0);
-      modelRoot.scaling.setAll(1);
-      modelRoot.position.set(0,0,0);
-      modelRoot.computeWorldMatrix(true);
-      for(const mesh of importedMeshes)mesh.computeWorldMatrix?.(true);
-
-      let bounds=getBounds(importedMeshes);
-      if(!bounds||!Number.isFinite(bounds.size.y)||bounds.size.y<=.001){
-        throw new Error('Invalid Meshy model bounds');
-      }
-
-      const scale=Math.min(8,Math.max(.05,TARGET_HEIGHT/bounds.size.y));
-      modelRoot.scaling.setAll(scale);
-      modelRoot.computeWorldMatrix(true);
-      for(const mesh of importedMeshes)mesh.computeWorldMatrix?.(true);
-
-      bounds=getBounds(importedMeshes);
-      if(!bounds)throw new Error('Could not fit player model');
-
-      // Center feet on the collision capsule's local origin.
-      modelRoot.position.x-=bounds.center.x;
-      modelRoot.position.z-=bounds.center.z;
-      modelRoot.position.y-=bounds.min.y;
-      modelRoot.computeWorldMatrix(true);
-
-      // Only now attach to the moving collider.
-      modelRoot.parent=player;
-
-      // Meshy source has no rig yet. It is still valid as the visual player.
       const groups=result.animationGroups||[];
-      const hasRiggedAnimation=groups.length>0;
-
-      // Do not hide fallback until we know the new model is visible and fitted.
-      oldRig?.setEnabled(false);
-
       const byName=(needle)=>groups.find(g=>g.name.toLowerCase().includes(needle.toLowerCase()));
       const clips={
-        idle:byName('Idle'),
-        run:byName('Run'),
-        crouch:byName('Crouch'),
-        punch:byName('Punch'),
-        rollForward:byName('RollForward'),
-        rollBackward:byName('RollBackward'),
-        rollLeft:byName('RollLeft'),
-        rollRight:byName('RollRight')
+        idle:byName('Idle'),run:byName('Run'),crouch:byName('Crouch'),punch:byName('Punch'),
+        rollForward:byName('RollForward'),rollBackward:byName('RollBackward'),
+        rollLeft:byName('RollLeft'),rollRight:byName('RollRight')
       };
 
       let current=null;
@@ -145,13 +160,13 @@
         current=group;
         group.start(loop,speed,group.from,group.to,false);
       }
-      if(hasRiggedAnimation)play(clips.idle,true,1);
+      play(clips.idle,true,1);
 
       const originalAttack=G.playAttack?.bind(G);
       G.playAttack=(type='light')=>{
         originalAttack?.(type);
         actionUntil=performance.now()+(type==='heavy'?720:460);
-        if(hasRiggedAnimation)play(clips.punch,false,type==='heavy'?.82:1.12);
+        play(clips.punch,false,type==='heavy'?.82:1.12);
       };
 
       const originalRoll=G.startRoll?.bind(G);
@@ -159,12 +174,11 @@
         const ok=originalRoll?.(direction);
         if(!ok)return false;
         actionUntil=performance.now()+650;
-        if(hasRiggedAnimation)play(clips.rollForward,false,1.08);
+        play(clips.rollForward,false,1.08);
         return true;
       };
 
       scene.onBeforeRenderObservable.add(()=>{
-        if(!hasRiggedAnimation)return;
         if(performance.now()<actionUntil)return;
         const st=G.getStealthState?.()||{speed:0,crouching:false,running:false};
         if(G.isRolling?.())return;
@@ -173,26 +187,13 @@
         else play(clips.idle,true,1);
       });
 
-      window.UP_MODEL={
-        loaded:true,
-        file:loadedFile,
-        rigged:hasRiggedAnimation,
-        root:modelRoot,
-        scale,
-        height:TARGET_HEIGHT,
-        animationGroups:groups,
-        clips
-      };
-
+      window.UP_MODEL={loaded:true,file:loadedFile,rigged:true,root:modelRoot,animationGroups:groups,clips};
       document.body.classList.remove('glb-player-loading','glb-player-fallback');
       document.body.classList.add('glb-player-loaded');
-      console.info('[Under Pressure] player model fitted',loadedFile,{scale,rigged:hasRiggedAnimation});
 
     }catch(err){
-      oldRig?.setEnabled(true);
-      document.body.classList.remove('glb-player-loading');
-      document.body.classList.add('glb-player-fallback');
-      console.warn('[Under Pressure] GLB player unavailable, keeping procedural fallback.',err);
+      console.warn('[Under Pressure] player model failed; fallback restored.',err);
+      showFallback(oldRig);
     }
   }
 
