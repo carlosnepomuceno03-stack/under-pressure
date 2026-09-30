@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='PARKOUR V14';
+const BUILD='PARKOUR V15';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -197,7 +197,7 @@ function wallProbe(height=.45,distance=1.1){
   let best=null;
   for(const dir of dirs){
     const ray=new BABYLON.Ray(player.position.add(new BABYLON.Vector3(0,height,0)),dir,distance);
-    const hit=scene.pickWithRay(ray,m=>m!==player&&m!==head&&m!==pack&&m.checkCollisions&&m.metadata?.climbable!==false);
+    const hit=scene.pickWithRay(ray,m=>m!==player&&m!==head&&m!==pack&&m.checkCollisions&&m.metadata?.climbable===true);
     if(hit?.hit&&(!best||hit.distance<best.distance))best={...hit,dir};
   }
   return best;
@@ -209,26 +209,22 @@ function hasHeadClearance(dir){
   return !(hit&&hit.hit);
 }
 
-// Never "teleport onto nothing". Before a mantle we search for an actual
-// walkable surface just beyond the ledge and only place the player there.
-function findMantleLanding(dir,top){
-  const probes=[.28,.5,.75,1.0];
-  for(const d of probes){
-    const xz=player.position.add(dir.scale(d));
-    const origin=new BABYLON.Vector3(xz.x,top+1.8,xz.z);
-    const ray=new BABYLON.Ray(origin,BABYLON.Vector3.Down(),3.0);
-    const hit=scene.pickWithRay(ray,m=>
-      m!==player&&m!==head&&m!==pack&&m.checkCollisions
-    );
-    if(hit?.hit&&hit.pickedPoint){
-      const y=hit.pickedPoint.y;
-      // Accept only surfaces near the ledge height, not the street far below.
-      if(y>=top-.35&&y<=top+.65){
-        return hit.pickedPoint.clone();
-      }
-    }
-  }
-  return null;
+// Mantle landing is computed from the ACTUAL climbed mesh.
+// This prevents the old bug where a downward ray could find some unrelated surface.
+function getMantleLanding(mesh,dir){
+  const bb=mesh.getBoundingInfo().boundingBox;
+  const min=bb.minimumWorld, max=bb.maximumWorld;
+  const margin=.58;
+
+  // Move a little INTO the object, then clamp to its real top footprint.
+  const probe=player.position.add(dir.normalize().scale(.72));
+  const x=BABYLON.Scalar.Clamp(probe.x,min.x+margin,max.x-margin);
+  const z=BABYLON.Scalar.Clamp(probe.z,min.z+margin,max.z-margin);
+
+  // Reject objects too narrow to actually stand on.
+  if((max.x-min.x)<margin*2 || (max.z-min.z)<margin*2) return null;
+
+  return new BABYLON.Vector3(x,max.y+1.07,z);
 }
 
 scene.onBeforeRenderObservable.add(()=>{
@@ -273,9 +269,9 @@ scene.onBeforeRenderObservable.add(()=>{
 
     // Low obstacle: mantle only if there is a real top/landing surface.
     if(obstacle>0&&obstacle<1.35){
-      const landing=findMantleLanding(dir,top);
+      const landing=getMantleLanding(mesh,dir);
       if(landing){
-        player.position.set(landing.x,landing.y+1.08,landing.z);
+        player.position.copyFrom(landing);
         vy=.15;
         climbing=false;
         parkourCooldown=.28;
@@ -293,17 +289,17 @@ scene.onBeforeRenderObservable.add(()=>{
 
       // Mantle only after confirming there is a surface to stand on.
       if(player.position.y+1.0>=top&&hasHeadClearance(dir)){
-        const landing=findMantleLanding(dir,top);
+        const landing=getMantleLanding(mesh,dir);
         if(landing){
-          player.position.set(landing.x,landing.y+1.08,landing.z);
+          player.position.copyFrom(landing);
           climbing=false;
           parkourCooldown=.35;
           keys.Space=false;
           spaceWasDown=false;
           vy=.12;
         }else{
-          // Hold at the lip instead of popping over and falling on empty space.
-          player.position.y=Math.min(player.position.y,top-.92);
+          // Hold at the lip instead of popping over.
+          player.position.y=Math.min(player.position.y,top-.98);
           vy=0;
         }
       }
