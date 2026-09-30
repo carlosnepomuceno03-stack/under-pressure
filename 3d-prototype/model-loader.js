@@ -42,10 +42,26 @@
       visual.scaling.setAll(SCALE);
       visual.rotation.set(0,0,0);
 
-      // Keep materials visible from either side.
+      // Meshy exported this material as fully metallic. In our dark night scene that
+      // makes the character nearly black. Keep the embedded texture but turn it into
+      // a matte game material that responds to our lights.
       if(visual.material){
-        visual.material.alpha=1;
-        visual.material.backFaceCulling=false;
+        const mat=visual.material;
+        mat.alpha=1;
+        mat.backFaceCulling=false;
+
+        if('metallic' in mat) mat.metallic=0.0;
+        if('roughness' in mat) mat.roughness=.72;
+        if('environmentIntensity' in mat) mat.environmentIntensity=1.15;
+        if('directIntensity' in mat) mat.directIntensity=1.35;
+
+        // Small texture-driven fill so clothing/face remain readable at night.
+        if(mat.albedoTexture && 'emissiveTexture' in mat){
+          mat.emissiveTexture=mat.albedoTexture;
+          mat.emissiveColor=new BABYLON.Color3(.16,.16,.16);
+        }else if('emissiveColor' in mat){
+          mat.emissiveColor=new BABYLON.Color3(.08,.08,.08);
+        }
       }
 
       visual.checkCollisions=false;
@@ -89,18 +105,18 @@
         throw new Error('Meshy world height invalid: '+h);
       }
 
-      // Bright debug marker at chest height for this build only.
-      // If model fails to render but this marker is visible, the issue is material/geometry.
-      const debug=BABYLON.MeshBuilder.CreateSphere('UP_PlayerDebugMarker',{diameter:.12,segments:8},scene);
-      debug.material=new BABYLON.StandardMaterial('UP_PlayerDebugMat',scene);
-      debug.material.emissiveColor=new BABYLON.Color3(1,0,.55);
-      debug.isPickable=false;
-      debug.checkCollisions=false;
+      // Extra soft fill dedicated to the player so the character remains readable
+      // against the dark prototype lighting without affecting the rest of the map.
+      const playerFill=new BABYLON.PointLight('UP_PlayerFill',player.getAbsolutePosition().add(new BABYLON.Vector3(0,1.2,-.8)),scene);
+      playerFill.diffuse=new BABYLON.Color3(.72,.82,1.0);
+      playerFill.specular=new BABYLON.Color3(.15,.15,.18);
+      playerFill.intensity=.48;
+      playerFill.range=5.5;
 
       scene.onBeforeRenderObservable.add(()=>{
         syncVisual();
         const p=player.getAbsolutePosition();
-        debug.position.set(p.x,p.y+.55,p.z);
+        playerFill.position.set(p.x,p.y+1.15,p.z-.75);
       });
 
       window.UP_MODEL={
@@ -108,7 +124,7 @@
         file:FILE,
         rigged:false,
         visual,
-        debug,
+        playerFill,
         scale:SCALE,
         worldHeight:h
       };
