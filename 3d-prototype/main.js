@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='VISUAL PASS V26';
+const BUILD='VISUAL PASS V27';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -255,11 +255,18 @@ ctx.strokeText('TDG',512,435); ctx.fillText('TDG',512,435);
 muralTex.update();
 
 const muralGameMat=new BABYLON.StandardMaterial('muralGameMat',scene);
-muralTex.vScale=-1;
-muralTex.vOffset=1;
+mural.material=wallLight;
+
+// Dedicated mural plane avoids box-face UV mirroring.
+const muralPlane=BABYLON.MeshBuilder.CreatePlane('muralPlane',{width:17.2,height:7.2},scene);
+muralPlane.position.set(26,4,-26.56);
+muralPlane.rotation.y=Math.PI;
+muralPlane.checkCollisions=false;
+
 muralGameMat.diffuseTexture=muralTex;
 muralGameMat.specularColor=new BABYLON.Color3(.05,.05,.05);
-mural.material=muralGameMat;
+muralGameMat.backFaceCulling=false;
+muralPlane.material=muralGameMat;
 
 for(const x of [20,32]){
   const glow=BABYLON.MeshBuilder.CreateSphere('muralLamp'+x,{diameter:.22,segments:8},scene);
@@ -272,19 +279,32 @@ for(const x of [20,32]){
   pl.range=12;
 }
 
-// simple layered dusk horizon
-const horizonMat=emissiveMat('horizonMat','#a85855',.45);
-const horizon=box('horizon',120,14,1,0,6,-50,horizonMat,false);
+// layered dusk backdrop using large planes instead of visible box walls
+const horizonMat=emissiveMat('horizonMat','#a85855',.34);
+const horizon=BABYLON.MeshBuilder.CreatePlane('horizon',{width:150,height:18},scene);
+horizon.position.set(0,7,-56);
+horizon.material=horizonMat;
 horizon.checkCollisions=false;
-const horizonTopMat=emissiveMat('horizonTop','#3f456f',.32);
-const horizonTop=box('horizonTop',120,18,1,0,20,-51,horizonTopMat,false);
+
+const horizonTopMat=emissiveMat('horizonTop','#38456f',.28);
+const horizonTop=BABYLON.MeshBuilder.CreatePlane('horizonTop',{width:150,height:28},scene);
+horizonTop.position.set(0,24,-57);
+horizonTop.material=horizonTopMat;
 horizonTop.checkCollisions=false;
 
 // distant skyline silhouettes
 for(let i=0;i<18;i++){
   const w=3+(i%4), h=3+(i%5)*1.2, d=4+(i%3);
-  const b=box('skyline'+i,w,h,d,-42+i*5.4,h/2-1,-43,wallDark,false);
+  const x=-42+i*5.4;
+  const b=box('skyline'+i,w,h,d,x,h/2-1,-43,wallDark,false);
   b.checkCollisions=false;
+
+  if(i%2===0){
+    const glow=BABYLON.MeshBuilder.CreateSphere('farLight'+i,{diameter:.16,segments:6},scene);
+    glow.position.set(x+(i%3)*.45,h*.55,-40.9);
+    glow.material=warmGlow;
+    glow.checkCollisions=false;
+  }
 }
 
 // road paint and small facade details
