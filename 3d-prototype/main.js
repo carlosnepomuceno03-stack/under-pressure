@@ -1,4 +1,7 @@
 const canvas=document.getElementById('renderCanvas');
+const BUILD='CAMERA V13';
+const buildEl=document.getElementById('buildTag');
+if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
 const scene=new BABYLON.Scene(engine);
 scene.clearColor=new BABYLON.Color4(0.035,0.045,0.075,1);
@@ -90,42 +93,61 @@ const head=BABYLON.MeshBuilder.CreateSphere('head',{diameter:.7},scene);
 head.parent=player;head.position.y=.75;head.material=playerMat;
 const pack=box('pack',.7,.85,.32,0,0,0,accent);pack.parent=player;pack.position.set(0,.15,.46);pack.checkCollisions=false;
 
-// camera — manual third-person controller (no ArcRotate input quirks)
+// camera — simple deterministic third-person orbit.
+// No pointer lock, no click, no auto-recentering, no hidden inversion.
 const camera=new BABYLON.FreeCamera('cam',new BABYLON.Vector3(0,3,-8),scene);
 camera.minZ=.1;
 
 let camYaw=0;
-let camPitch=.12;
+let camPitch=.16;
 let camDistance=7.2;
-const CAM_SENS_X=.0026;
-const CAM_SENS_Y=.0022;
+let lastMouseX=null;
+let lastMouseY=null;
 
-function tryLockPointer(){
-  if(document.pointerLockElement!==canvas) canvas.requestPointerLock?.();
-}
-canvas.addEventListener('click',tryLockPointer);
+const CAM_X=.0042;
+const CAM_Y=.0034;
 
 document.addEventListener('mousemove',e=>{
-  if(document.pointerLockElement!==canvas)return;
-  camYaw+=e.movementX*CAM_SENS_X;
-  camPitch=BABYLON.Scalar.Clamp(camPitch-e.movementY*CAM_SENS_Y,-.35,.55);
+  if(lastMouseX===null){
+    lastMouseX=e.clientX;
+    lastMouseY=e.clientY;
+    return;
+  }
+
+  const dx=e.clientX-lastMouseX;
+  const dy=e.clientY-lastMouseY;
+  lastMouseX=e.clientX;
+  lastMouseY=e.clientY;
+
+  if(Math.abs(dx)>140||Math.abs(dy)>140)return;
+
+  // Natural PC controls:
+  // mouse right -> look right
+  // mouse up    -> look up
+  camYaw-=dx*CAM_X;
+  camPitch=BABYLON.Scalar.Clamp(camPitch+dy*CAM_Y,-.38,.48);
 });
+
+window.addEventListener('blur',()=>{lastMouseX=null;lastMouseY=null});
+document.addEventListener('mouseleave',()=>{lastMouseX=null;lastMouseY=null});
 
 canvas.addEventListener('wheel',e=>{
   e.preventDefault();
-  camDistance=BABYLON.Scalar.Clamp(camDistance+Math.sign(e.deltaY)*.5,5.2,9.5);
+  camDistance=BABYLON.Scalar.Clamp(camDistance+Math.sign(e.deltaY)*.45,5.2,9.5);
 },{passive:false});
 
 function updateCamera(dt){
-  const target=player.position.add(new BABYLON.Vector3(0,.85,0));
+  const target=player.position.add(new BABYLON.Vector3(0,.9,0));
   const cp=Math.cos(camPitch);
+
   const desired=new BABYLON.Vector3(
-    target.x-Math.sin(camYaw)*cp*camDistance,
-    target.y+1.35-Math.sin(camPitch)*camDistance,
+    target.x+Math.sin(camYaw)*cp*camDistance,
+    target.y+1.25+Math.sin(camPitch)*camDistance,
     target.z-Math.cos(camYaw)*cp*camDistance
   );
-  const t=1-Math.pow(.0007,dt);
-  camera.position=BABYLON.Vector3.Lerp(camera.position,desired,t);
+
+  const smooth=1-Math.pow(.00035,dt);
+  camera.position=BABYLON.Vector3.Lerp(camera.position,desired,smooth);
   camera.setTarget(target);
 }
 
@@ -134,7 +156,6 @@ const keys={};
 let spacePressedAt=0;
 let spaceWasDown=false;
 window.addEventListener('keydown',e=>{
-  if(document.pointerLockElement!==canvas) tryLockPointer();
   if(e.code==='Space'&&!keys.Space)spacePressedAt=performance.now();
   keys[e.code]=true;
 });
@@ -149,10 +170,10 @@ let climbing=false;
 let parkourCooldown=0;
 
 function forwardFlat(){
-  return new BABYLON.Vector3(Math.sin(camYaw),0,Math.cos(camYaw)).normalize();
+  return new BABYLON.Vector3(-Math.sin(camYaw),0,Math.cos(camYaw)).normalize();
 }
 function rightFlat(){
-  return new BABYLON.Vector3(Math.cos(camYaw),0,-Math.sin(camYaw)).normalize();
+  return new BABYLON.Vector3(Math.cos(camYaw),0,Math.sin(camYaw)).normalize();
 }
 function playerForward(){
   return new BABYLON.Vector3(Math.sin(player.rotation.y),0,Math.cos(player.rotation.y)).normalize();
