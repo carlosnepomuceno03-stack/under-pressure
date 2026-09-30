@@ -457,6 +457,17 @@ class MapScene extends Phaser.Scene{
     this.menuBtn=btn(this,GW-100,GH-48,160,56,'MENU',MID,'#fff',20);
     this.ui.add([this.menuBtn.bg,this.menuBtn.tx]);this.menuBtn.on('pointerdown',()=>this.scene.start('Menu'));
 
+    this.replayBtn=btn(this,GW-285,GH-48,185,56,'REJOGAR FASE',0x26324a,'#fff',15);
+    this.ui.add([this.replayBtn.bg,this.replayBtn.tx]);
+    this.replayBtn.on('pointerdown',()=>{
+      AUDIO.select();
+      this.scene.start('Paint',{phase:this.activePhase,replay:true});
+    });
+
+    this.resetBtn=btn(this,GW-500,GH-48,200,56,'RESETAR RUN',0x4b2230,'#fff',15);
+    this.ui.add([this.resetBtn.bg,this.resetBtn.tx]);
+    this.resetBtn.on('pointerdown',()=>this.confirmRunReset());
+
     this.fsBtn=btn(this,GW-112,105,190,60,'TELA CHEIA',0x202838,'#fff',17);
     this.ui.add([this.fsBtn.bg,this.fsBtn.tx]);
     this.fsBtn.on('pointerdown',async()=>{
@@ -718,6 +729,28 @@ class MapScene extends Phaser.Scene{
     this.tweens.add({targets:box,y:145,duration:380,ease:'Back.Out',hold:1800,yoyo:true,onComplete:()=>box.destroy()});
   }
 
+  confirmRunReset(){
+    if(this.resetOverlay?.active)return;
+    this.resetOverlay=this.add.container(GW/2,GH/2).setDepth(40000);
+    const shade=this.add.rectangle(0,0,GW,GH,0x000000,.72).setInteractive();
+    const box=this.add.rectangle(0,0,590,270,0x0a0d13,.98).setStrokeStyle(3,0xffd447,.55);
+    const title=txt(this,0,-88,'RESETAR A CAMPANHA?',26,'#ffd447',true).setOrigin(.5);
+    const sub=txt(this,0,-40,'As 3 fases e os graffitis serão zerados.\nSeus itens, cores e máscaras desbloqueadas continuam.',16,'#d6dbe6').setOrigin(.5).setAlign('center');
+    const yes=btn(this,-125,75,205,58,'RESETAR',0xff315a,'#fff',16);
+    const no=btn(this,125,75,205,58,'CANCELAR',MID,'#fff',16);
+    yes.on('pointerdown',()=>{
+      P.phase1Complete=false;P.phase2Complete=false;P.phase3Complete=false;
+      P.missionComplete=false;P.phase=1;
+      P.phase1Art=null;P.phase2Art=null;P.phase3Art=null;
+      P.lastScore=0;P.lastStars=0;
+      SAVE.set(P);
+      this.scene.restart();
+    });
+    no.on('pointerdown',()=>{this.resetOverlay.destroy();this.resetOverlay=null});
+    this.resetOverlay.add([shade,box,title,sub,yes.bg,yes.tx,no.bg,no.tx]);
+    this.ui.add(this.resetOverlay);
+  }
+
   blocked(x,y){
     const r=17;
     return this.blockers.some(b=>
@@ -784,7 +817,7 @@ class MapScene extends Phaser.Scene{
 // ---------- PAINT MISSION ----------
 class Paint extends Phaser.Scene{
   constructor(){super('Paint')}
-  init(data){this.phase=data?.phase||1}
+  init(data){this.phase=data?.phase||1;this.replay=!!data?.replay}
   create(){
     AUDIO.setScene('paint');
     addOrientationHint(this);
@@ -1130,12 +1163,15 @@ class Paint extends Phaser.Scene{
     const score=Math.max(0,1500+speed+paletteBonus+outlineBonus+policeBonus-dripPenalty),stars=score>=3400?3:score>=2450?2:1;
     const captured=this.captureArtwork();
     if(this.phase===1){
-      P.phase1Complete=true;P.phase=2;P.missionComplete=false;P.phase1Art=captured;
+      P.phase1Complete=true;P.phase1Art=captured;
+      if(!this.replay){P.phase=2;P.missionComplete=false}
     }else if(this.phase===2){
-      P.phase2Complete=true;P.phase=3;P.missionComplete=false;P.phase2Art=captured;
+      P.phase2Complete=true;P.phase2Art=captured;
+      if(!this.replay){P.phase=3;P.missionComplete=false}
     }else{
-      P.phase3Complete=true;P.phase=3;P.missionComplete=true;P.phase3Art=captured;
-      P.rareMaskUnlocked=true;P.campaignComplete=true;
+      P.phase3Complete=true;P.phase3Art=captured;
+      P.rareMaskUnlocked=true;P.campaignComplete=true;P.missionComplete=true;
+      if(!this.replay)P.phase=3;
     }
     P.lastScore=score;P.lastStars=stars;P.finalColors=(this.colorsUsed.length?this.colorsUsed:[P.spray,'#19d7e7','#ffd447']).slice(0,3);while(P.finalColors.length<3)P.finalColors.push(['#ff2d78','#19d7e7','#ffd447'][P.finalColors.length]);SAVE.set(P);
     this.add.rectangle(GW/2,GH/2,GW,GH,0x000000,.72).setDepth(1000);panel(this,GW/2,GH/2,760,500,.98,0xffd447).setDepth(1001);
@@ -1146,7 +1182,11 @@ class Paint extends Phaser.Scene{
     if(this.phase===3){
       txt(this,GW/2,646,'EQUIPE A MÁSCARA RARA E REJOGUE PARA LIBERAR AS CORES NEON',12,'#d6a8ff',true).setOrigin(.5).setDepth(1002);
     }
-    const b=btn(this,GW/2,680,300,62,'VOLTAR AO MAPA',YELLOW,'#111',20);b.bg.setDepth(1003);b.tx.setDepth(1004);b.on('pointerdown',()=>this.scene.start('Map'));
+    const replay=btn(this,GW/2-175,680,300,62,'REJOGAR FASE',0x26324a,'#fff',18);
+    replay.bg.setDepth(1003);replay.tx.setDepth(1004);
+    replay.on('pointerdown',()=>this.scene.restart({phase:this.phase,replay:true}));
+    const b=btn(this,GW/2+175,680,300,62,'VOLTAR AO MAPA',YELLOW,'#111',18);
+    b.bg.setDepth(1003);b.tx.setDepth(1004);b.on('pointerdown',()=>this.scene.start('Map'));
   }
 
   update(_,delta){
