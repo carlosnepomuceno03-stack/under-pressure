@@ -1,5 +1,5 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='PROTOTYPE MATCH V40';
+const BUILD='BLUEPRINT MAP V41';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
 const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
@@ -245,6 +245,17 @@ box('road',18,.24,70,-15,.02,0,asphalt,false);
 box('sidewalkL',3,.35,70,-24,.08,0,curbMat,false);
 box('sidewalkR',2.6,.35,70,-5.7,.08,0,curbMat,false);
 
+// Prototype start rooftop in the foreground-left.
+const startRoofBase=box('startRoofBase',10,4.2,8,-5,2.1,28,wallDark,true);
+const startRoof=box('startRoof',10.5,.36,8.5,-5,4.38,28,roofMat,true);
+addPitchedRoof('startRoofPitch',-5,4.30,28,10.2,8.2,roofMat,.16);
+addMetalFence('startFenceA',-9.8,28,6.6,1.35);
+addMetalFence('startFenceB',-.2,28,6.6,1.35);
+
+// stepped rooftop access toward Route 3, while street/campão remain reachable by dropping down.
+box('route3StepA',3.2,3.0,3.0,.8,1.5,25.8,wallDark,true);
+box('route3StepB',3.2,3.8,3.0,4.6,1.9,22.0,wallDark,true);
+
 // buildings left street
 for(let i=0;i<6;i++){
   const z=-28+i*11;
@@ -283,7 +294,7 @@ for(const p of [[8,.6,-6],[13,.8,-10],[18,.55,-14],[4,.5,-18]]){
   box('camp'+Math.random(),2.5,p[1]*2,1.6,p[0],p[1],p[2],concrete);
 }
 // mural final
-const mural=box('mural',18,8,.8,26,4,-27,wallMat);
+const mural=box('mural',18,8,.8,12,4,-31,wallMat);
 mural.material=mat('muralMat','#b8b0a5');
 
 // urban props / street infrastructure
@@ -373,6 +384,76 @@ function addLadder(name,x,y,z,height=4){
   for(let i=0;i<steps;i++) box(name+'Step'+i,1.0,.08,.12,x,y-height/2+.3+i*.42,z,metalMat,false);
 }
 
+// PROTOTYPE BLUEPRINT V41 — layout cues from the approved overview.
+function addCar(name,x,z,rot=0,bodyHex='#333943'){
+  const bodyMat=mat(name+'Body',bodyHex);
+  const glassMat=mat(name+'Glass','#17222e');
+  const root=new BABYLON.TransformNode(name,scene);
+  root.position.set(x,.48,z);root.rotation.y=rot;
+
+  const body=box(name+'Body',1.8,.55,3.5,0,.25,0,bodyMat,false);
+  body.parent=root;body.position.set(0,.22,0);body.checkCollisions=false;
+  const cabin=box(name+'Cabin',1.55,.58,1.75,0,.72,-.15,glassMat,false);
+  cabin.parent=root;
+  cabin.checkCollisions=false;
+
+  for(const sx of [-.82,.82]) for(const sz of [-1.05,1.05]){
+    const wheel=BABYLON.MeshBuilder.CreateCylinder(name+'Wheel'+sx+sz,{diameter:.54,height:.22,tessellation:14},scene);
+    wheel.parent=root;wheel.position.set(sx,.03,sz);wheel.rotation.z=Math.PI/2;wheel.material=tireMat;wheel.checkCollisions=false;
+  }
+  return root;
+}
+addCar('carStreetA',-15.7,16,.05,'#30343d');
+addCar('carStreetB',-14.2,-1,-.04,'#59514b');
+addCar('carStreetC',-16.4,-22,.06,'#282d35');
+
+// pedestrian crossing like the prototype
+for(let i=-4;i<=4;i++){
+  const stripe=box('crosswalk'+i,5.5,.025,.34,-15,.165,8+i*.62,curbMat,false);
+  stripe.checkCollisions=false;
+}
+
+// central campão border walls / gates
+for(const [x,z,w,d] of [
+  [-1.6,6,.45,9],[-1.0,-13,.45,8],
+  [24,15,.45,9],[24,-18,.45,8]
+]){
+  const wv=box('lotBoundary'+x+z,w,1.5,d,x,.75,z,wallLight,false);
+  wv.checkCollisions=false;
+}
+
+// campão rubble and broken low walls
+for(const [x,z,w] of [[5,4,3.2],[12,-2,4.0],[18,-10,3.6],[8,-19,2.8]]){
+  const rubble=box('brokenWall'+x+z,w,.65,.48,x,.33,z,concrete,false);
+  rubble.checkCollisions=false;
+  for(let i=0;i<4;i++){
+    const rock=box('rock'+x+z+i,.35+(i%2)*.16,.25+(i%3)*.10,.32,x-w/2+.5+i*.65,.17,z+.35+(i%2)*.18,concrete,false);
+    rock.rotation.y=i*.45;rock.checkCollisions=false;
+  }
+}
+
+// Three route guide strokes in the same cyan / yellow / pink language as the concept.
+function routeDot(name,x,y,z,material,scale=.23){
+  const d=BABYLON.MeshBuilder.CreateCylinder(name,{diameter:scale,height:.035,tessellation:12},scene);
+  d.position.set(x,y,z);d.material=material;d.checkCollisions=false;d.isPickable=false;return d;
+}
+const routeBlue=emissiveMat('routeBlue','#48bfff',.50);
+const routeGold=emissiveMat('routeGold','#ffc426',.55);
+const routePink=emissiveMat('routePink','#ff3b9f',.55);
+
+for(let i=0;i<10;i++) routeDot('streetRoute'+i,-15,.19,25-i*5.3,routeBlue,.22);
+const lotPath=[[0,23],[3,18],[5,12],[8,7],[10,1],[11,-6],[12,-13],[12,-20],[12,-26]];
+lotPath.forEach((p,i)=>routeDot('lotRoute'+i,p[0],.20,p[1],routeGold,.24));
+const roofPath=[[-1,25,3.2],[4,22,4.4],[8,18,5.3],[13,12,5.7],[18,8,7.25],[24,5,6.5],[30,-3,8.95]];
+roofPath.forEach((p,i)=>routeDot('roofRoute'+i,p[0],p[2]+.10,p[1],routePink,.24));
+
+// more skyline trees and rooftop water tanks matching the overview
+addTree('treeLotCenter',10,-4,1.55);
+addTree('treeLotRear',14,-20,1.05);
+addWaterTank('tankStart',-7,5.1,27);
+addWaterTank('tankFarA',25,9.25,-5);
+addWaterTank('tankFarB',18,7.6,10);
+
 // storefront / windows / doors
 addDoor('doorL1',-25.92,1.15,18,.95,2.2,metalMat);
 addWindow('windowL1',-25.91,2.3,13,1.45,1.0,warmGlow);
@@ -431,7 +512,7 @@ mural.material=wallLight;
 
 // Dedicated mural plane avoids box-face UV mirroring.
 const muralPlane=BABYLON.MeshBuilder.CreatePlane('muralPlane',{width:17.2,height:7.2},scene);
-muralPlane.position.set(26,4,-26.56);
+muralPlane.position.set(12,4,-30.56);
 muralPlane.rotation.y=Math.PI;
 muralPlane.checkCollisions=false;
 
@@ -440,12 +521,12 @@ muralGameMat.specularColor=new BABYLON.Color3(.05,.05,.05);
 muralGameMat.backFaceCulling=false;
 muralPlane.material=muralGameMat;
 
-for(const x of [20,32]){
+for(const x of [6,18]){
   const glow=BABYLON.MeshBuilder.CreateSphere('muralLamp'+x,{diameter:.22,segments:8},scene);
-  glow.position.set(x,7.25,-26.45);
+  glow.position.set(x,7.25,-30.45);
   glow.material=warmGlow;
   glow.checkCollisions=false;
-  const pl=new BABYLON.PointLight('muralLight'+x,new BABYLON.Vector3(x,7,-25.8),scene);
+  const pl=new BABYLON.PointLight('muralLight'+x,new BABYLON.Vector3(x,7,-29.8),scene);
   pl.diffuse=new BABYLON.Color3(1,.57,.3);
   pl.intensity=.7;
   pl.range=12;
@@ -454,7 +535,7 @@ for(const x of [20,32]){
 // layered dusk backdrop using large planes instead of visible box walls
 const horizonMat=emissiveMat('horizonMat','#a85855',.34);
 const horizon=BABYLON.MeshBuilder.CreatePlane('horizon',{width:150,height:18},scene);
-horizon.position.set(0,7,-56);
+horizon.position.set(0,7,-60);
 horizon.material=horizonMat;
 horizon.checkCollisions=false;
 
@@ -768,7 +849,7 @@ const crewNames=['NEPO','TRANE','NOROK','ICON','GOM','MM','OFF','PRIKS','ANJO','
 // player collider + simple humanoid visual rig
 // The capsule remains only for collision; the visible character is built from separate limbs.
 const player=BABYLON.MeshBuilder.CreateCapsule('playerCollider',{height:2.1,radius:.42},scene);
-player.position=new BABYLON.Vector3(-16,1.2,27);
+player.position=new BABYLON.Vector3(-5,5.55,28);
 player.isVisible=false;
 player.checkCollisions=true;
 player.ellipsoid=new BABYLON.Vector3(.42,1.0,.42);
