@@ -23,9 +23,11 @@ const roofMat=mat('roof','#6f3d32');
 const accent=mat('accent','#14d7e8');
 const playerMat=mat('player','#d7d4c7');
 
-function box(name,w,h,d,x,y,z,material){
+function box(name,w,h,d,x,y,z,material,climbable=false){
   const b=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
-  b.position.set(x,y,z); b.material=material; b.checkCollisions=true; return b;
+  b.position.set(x,y,z); b.material=material; b.checkCollisions=true;
+  b.metadata={...(b.metadata||{}),climbable};
+  return b;
 }
 function cyl(name,diam,h,x,y,z,material){
   const c=BABYLON.MeshBuilder.CreateCylinder(name,{diameter:diam,height:h},scene);
@@ -46,23 +48,23 @@ for(let i=0;i<6;i++){
   box('roofL'+i,10.5,.45,8.5,-31,h+.22,z,roofMat);
 }
 // parkour buildings right
-box('shop1',9,4.5,8,8,2.25,18,wallMat);
+box('shop1',9,4.5,8,8,2.25,18,wallMat,true);
 box('awning1',4,.35,3,3.7,3.1,18,concrete);
 box('roof1',9.5,.4,8.5,8,4.72,18,roofMat);
 
-box('house2',10,6.5,9,18,3.25,8,wallMat);
+box('house2',10,6.5,9,18,3.25,8,wallMat,true);
 box('roof2',10.5,.4,9.5,18,6.72,8,roofMat);
 
-box('house3',11,8.2,9,30,4.1,-3,wallMat);
+box('house3',11,8.2,9,30,4.1,-3,wallMat,true);
 box('roof3',11.5,.4,9.5,30,8.42,-3,roofMat);
 
 // parkour route pieces
-box('lowWall',8,1.4,.7,1,.7,25,concrete);
-box('vaultBox',1.4,1.0,1.4,4,.5,22,concrete);
-box('ledge',5,.35,1.3,12,3.4,17,concrete);
-box('bridgeRoof',5,.35,3,13,5.3,12,roofMat);
-box('highLedge',4,.35,1.1,24,6.3,5,concrete);
-box('landing',4,.4,4,26,8.5,1,roofMat);
+box('lowWall',8,1.4,.7,1,.7,25,concrete,true);
+box('vaultBox',1.4,1.0,1.4,4,.5,22,concrete,true);
+box('ledge',5,.35,1.3,12,3.4,17,concrete,true);
+box('bridgeRoof',5,.35,3,13,5.3,12,roofMat,true);
+box('highLedge',4,.35,1.1,24,6.3,5,concrete,true);
+box('landing',4,.4,4,26,8.5,1,roofMat,true);
 
 // campao obstacles
 for(const p of [[8,.6,-6],[13,.8,-10],[18,.55,-14],[4,.5,-18]]){
@@ -96,13 +98,32 @@ camera.lowerBetaLimit=.7;camera.upperBetaLimit=1.35;
 camera.wheelDeltaPercentage=.01;
 camera.lockedTarget=player;
 
+// Camera: click once to lock the mouse, then look around without dragging.
+canvas.addEventListener('click',()=>{
+  if(document.pointerLockElement!==canvas)canvas.requestPointerLock?.();
+});
+document.addEventListener('mousemove',e=>{
+  if(document.pointerLockElement!==canvas)return;
+  camera.alpha-=e.movementX*.0026;
+  camera.beta=BABYLON.Scalar.Clamp(camera.beta+e.movementY*.0022,.72,1.32);
+});
+
 // input
 const keys={};
-window.addEventListener('keydown',e=>keys[e.code]=true);
-window.addEventListener('keyup',e=>keys[e.code]=false);
+let spacePressedAt=0;
+let spaceWasDown=false;
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'&&!keys.Space)spacePressedAt=performance.now();
+  keys[e.code]=true;
+});
+window.addEventListener('keyup',e=>{
+  keys[e.code]=false;
+  if(e.code==='Space')spaceWasDown=false;
+});
 
 let vy=0;
 let grounded=false;
+let climbing=false;
 let parkourCooldown=0;
 
 function forwardFlat(){
@@ -111,9 +132,12 @@ function forwardFlat(){
 function rightFlat(){
   const f=forwardFlat();return new BABYLON.Vector3(f.z,0,-f.x);
 }
+function playerForward(){
+  return new BABYLON.Vector3(Math.sin(player.rotation.y),0,Math.cos(player.rotation.y)).normalize();
+}
 function rayAhead(distance=1.25,height=.7){
   const origin=player.position.add(new BABYLON.Vector3(0,height,0));
-  const ray=new BABYLON.Ray(origin,forwardFlat(),distance);
+  const ray=new BABYLON.Ray(origin,playerForward(),distance);
   return scene.pickWithRay(ray,m=>m!==player&&m!==head&&m!==pack&&m.checkCollisions);
 }
 function rayDown(distance=1.3){
@@ -144,35 +168,41 @@ scene.onBeforeRenderObservable.add(()=>{
   grounded=!!(down&&down.hit);
   if(grounded&&vy<0)vy=-.5;
 
-  if((keys.Space)&&grounded){
-    vy=7.4;
-    keys.Space=false;
-  }
+  // SPACE does everything:
+  // quick press = jump; keep holding near a climbable surface = auto climb.
+  const spaceHeld=!!keys.Space;
+  const heldMs=spaceHeld?(performance.now()-spacePressedAt):0;
+  const wallHit=spaceHeld?rayAhead(1.15,.35):null;
+  const climbTarget=wallHit&&wallHit.hit&&wallHit.pickedMesh?.metadata?.climbable;
 
-  // E = simple contextual vault / climb prototype
-  if(keys.KeyE&&parkourCooldown<=0){
-    const hit=rayAhead(1.45,.55);
-    if(hit&&hit.hit){
-      const top=hit.pickedMesh.getBoundingInfo().boundingBox.maximumWorld.y;
-      const feet=player.position.y-1.05;
-      const obstacle=top-feet;
-      if(obstacle>0&&obstacle<1.45){
-        player.position.y+=obstacle+.22;
-        player.position.addInPlace(forwardFlat().scale(1.15));
-        vy=2.2;
-        parkourCooldown=.45;
-      }else if(obstacle>=1.45&&obstacle<2.8){
-        player.position.y+=Math.min(obstacle+.25,2.5);
-        player.position.addInPlace(forwardFlat().scale(.55));
-        vy=.8;
-        parkourCooldown=.7;
-      }
+  climbing=!!(climbTarget&&heldMs>160&&parkourCooldown<=0);
+
+  if(climbing){
+    vy=0;
+    // Hug the wall and move upward while Space remains held.
+    player.moveWithCollisions(new BABYLON.Vector3(0,3.15*dt,0));
+    player.moveWithCollisions(playerForward().scale(.35*dt));
+
+    // If the head clears the top edge, pull the player onto the surface.
+    const top=wallHit.pickedMesh.getBoundingInfo().boundingBox.maximumWorld.y;
+    if(player.position.y+1.0>=top){
+      player.position.y=top+1.08;
+      player.position.addInPlace(playerForward().scale(.72));
+      climbing=false;
+      parkourCooldown=.28;
+      keys.Space=false;
+      spaceWasDown=false;
+      vy=.2;
     }
-    keys.KeyE=false;
+  }else{
+    // One jump per press. Holding Space won't bunny-hop.
+    if(spaceHeld&&!spaceWasDown&&grounded){
+      vy=7.4;
+      spaceWasDown=true;
+    }
+    vy-=18*dt;
+    player.moveWithCollisions(new BABYLON.Vector3(0,vy*dt,0));
   }
-
-  vy-=18*dt;
-  player.moveWithCollisions(new BABYLON.Vector3(0,vy*dt,0));
   if(player.position.y<-5)player.position.set(-16,1.2,27);
 });
 
