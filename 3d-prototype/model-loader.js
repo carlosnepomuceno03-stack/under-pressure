@@ -1,6 +1,10 @@
 (()=>{
   const PATH='./3d-prototype/assets/characters/player/';
-  const STATIC_TEST=new URLSearchParams(location.search).has('staticplayer');
+  const params=new URLSearchParams(location.search);
+  const STATIC_TEST=params.has('staticplayer');
+  // Raw UAL tracks are not compatible with this player bind pose.
+  // Explicit opt-in only until proper skeleton retargeting is implemented.
+  const EXPERIMENTAL_UAL=params.has('experimentalual');
   const FILES=STATIC_TEST?['player_meshy.glb','rigged-model.glb']:['rigged-model.glb','player_meshy.glb'];
   const DEBUG_PLAYER=STATIC_TEST||new URLSearchParams(location.search).has('debugplayer');
   let testPanel=null;
@@ -240,10 +244,10 @@
     importRoot.parent=player;
 
     // Lightweight UAL animation-only GLB (~410 KB), retargeted onto the good AnnoMotion rig.
-    status('Modelo: '+loadedFile+'\nRig: '+(result.skeletons||[]).length+' skeleton(s)\nClipes originais: '+nativeGroups.length+'\nCarregando animações...');
-    const ualGroups=STATIC_TEST?[]:await loadUALAnimations(scene,result);
+    status('Modelo: '+loadedFile+'\nRig: '+(result.skeletons||[]).length+' skeleton(s)\nClipes originais: '+nativeGroups.length+'\n'+(EXPERIMENTAL_UAL?'UAL experimental':'Modo seguro: sem retarget direto'));
+    const ualGroups=(!STATIC_TEST&&EXPERIMENTAL_UAL)?await loadUALAnimations(scene,result):[];
     const groups=ualGroups.length?ualGroups:nativeGroups;
-    if(!STATIC_TEST&&DEBUG_PLAYER)status('Modelo: '+loadedFile+'\nAnimações UAL: '+ualGroups.length+'\nNativas: '+nativeGroups.length+'\n'+(ualGroups.length?'Pacote profissional ATIVO':'Pacote profissional ausente/incompatível'));
+    if(!STATIC_TEST&&DEBUG_PLAYER)status('Modelo: '+loadedFile+'\nAnimações UAL: '+ualGroups.length+'\nNativas: '+nativeGroups.length+'\n'+(ualGroups.length?'UAL EXPERIMENTAL':'UAL pausado: rig incompatível'));
 
     const by=(...names)=>groups.find(g=>{
       const x=(g.name||'').toLowerCase();
@@ -349,7 +353,7 @@
       loaded:true,ready:true,
       rigged:(result.skeletons||[]).length>0,
       animated:groups.length>0,
-      animationSource:ualGroups.length?'UAL1+UAL2':'native',
+      animationSource:ualGroups.length?'UAL_EXPERIMENTAL':(nativeGroups.length?'native':'none'),
       file:loadedFile,root:importRoot,scale,groups,clips
     };
 
