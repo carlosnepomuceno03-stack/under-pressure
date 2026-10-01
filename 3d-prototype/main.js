@@ -2044,8 +2044,11 @@ window.UP3D={
   },
   toggleView(){setFirstPerson(!firstPerson);},
   getMoveDirection(){
-    if(currentMoveIntent.lengthSquared()>.04)return currentMoveIntent.clone().normalize();
-    return new BABYLON.Vector3(-Math.sin(player.rotation.y),0,-Math.cos(player.rotation.y)).normalize();
+    // Dodge must use input RIGHT NOW, not the last cached direction.
+    const wish=getMoveIntentWorld();
+    if(wish.lengthSquared()>.01)return wish.normalize();
+    // Player yaw is aligned with movement via atan2(wish.x,wish.z).
+    return new BABYLON.Vector3(Math.sin(player.rotation.y),0,Math.cos(player.rotation.y)).normalize();
   },
   getForward(){
     return new BABYLON.Vector3(
