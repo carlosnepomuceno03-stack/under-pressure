@@ -5,7 +5,7 @@
   // Raw UAL tracks are not compatible with this player bind pose.
   // Explicit opt-in only until proper skeleton retargeting is implemented.
   const EXPERIMENTAL_UAL=params.has('experimentalual');
-  const FILES=STATIC_TEST?['player_meshy.glb','rigged-model.glb']:['rigged-model.glb','player_meshy.glb'];
+  const FILES=STATIC_TEST?['player_meshy.glb','rigged-model.glb']:['under_pressure_personagem_16_animacoes.glb','rigged-model.glb','player_meshy.glb'];
   const DEBUG_PLAYER=STATIC_TEST||new URLSearchParams(location.search).has('debugplayer');
   let testPanel=null;
   function status(message){
@@ -245,8 +245,10 @@
 
     // Lightweight UAL animation-only GLB (~410 KB), retargeted onto the good AnnoMotion rig.
     status('Modelo: '+loadedFile+'\nRig: '+(result.skeletons||[]).length+' skeleton(s)\nClipes originais: '+nativeGroups.length+'\n'+(EXPERIMENTAL_UAL?'UAL experimental':'Modo seguro: sem retarget direto'));
-    const ualGroups=(!STATIC_TEST&&EXPERIMENTAL_UAL)?await loadUALAnimations(scene,result):[];
+    const isBakedPack=loadedFile==='under_pressure_personagem_16_animacoes.glb';
+    const ualGroups=(!STATIC_TEST&&!isBakedPack&&EXPERIMENTAL_UAL)?await loadUALAnimations(scene,result):[];
     const groups=ualGroups.length?ualGroups:nativeGroups;
+    if(isBakedPack)console.info('[Under Pressure] 16 retargeted animations using the SAME baked skeleton; direct UAL retarget disabled');
     if(!STATIC_TEST&&DEBUG_PLAYER)status('Modelo: '+loadedFile+'\nAnimações UAL: '+ualGroups.length+'\nNativas: '+nativeGroups.length+'\n'+(ualGroups.length?'UAL EXPERIMENTAL':'UAL pausado: rig incompatível'));
 
     // Prefer the player's own correctly bound idle even when testing other clips.
@@ -355,7 +357,7 @@
       loaded:true,ready:true,
       rigged:(result.skeletons||[]).length>0,
       animated:groups.length>0,
-      animationSource:ualGroups.length?'UAL_EXPERIMENTAL':(nativeGroups.length?'native':'none'),
+      animationSource:isBakedPack?'UAL_BAKED_16':(ualGroups.length?'UAL_EXPERIMENTAL':(nativeGroups.length?'native':'none')),
       file:loadedFile,root:importRoot,scale,groups,clips
     };
 
