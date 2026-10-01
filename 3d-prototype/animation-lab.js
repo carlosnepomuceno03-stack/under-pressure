@@ -164,8 +164,24 @@ scene.onBeforeRenderObservable.add(()=>{
   else idlePose();
  }
  prevGrounded=grounded;
- const desiredRootHeight=active===clip.idle&&!moving&&grounded&&!rolling?idleHeight:footOffset;
- root.position.y=B.Scalar.Lerp(root.position.y,desiredRootHeight,Math.min(1,dt*10));
+ // Animated hip translation moves the feet during the Idle loop.
+ // Keep the feet attached to the actual floor under the collision capsule
+ // on EVERY frame, rather than trusting the first frame's height.
+ const standingIdle=active===clip.idle&&!moving&&grounded&&!rolling&&!locked;
+ let targetRootY=footOffset;
+ let ankleMin=null;
+ if(standingIdle&&selectedFeet.length){
+   const feetNow=localFootHeights();
+   ankleMin=Math.min(...feetNow.map(v=>v.y));
+   if(Number.isFinite(ankleMin)){
+     // Both values are in collider-local coordinates: collider floor = -1.04.
+     // Ankles normally sit slightly above the soles.
+     const targetAnkle=-.96;
+     const error=B.Scalar.Clamp(targetAnkle-ankleMin,-.38,.38);
+     targetRootY=B.Scalar.Clamp(root.position.y+error,footOffset-.65,footOffset+.35);
+   }
+ }
+ root.position.y=B.Scalar.Lerp(root.position.y,targetRootY,Math.min(1,dt*(standingIdle?16:9)));
  const desired=collider.position.add(new B.Vector3(0,.65,0));camera.target=B.Vector3.Lerp(camera.target,desired,Math.min(1,dt*8));
  report('Animação: '+(active?.name||'nenhuma')+'\nPosição: '+collider.position.y.toFixed(2)+' m | No chão: '+grounded+'\nMovimento: '+(moving?'sim':'não')+' | Clipes: '+groups.length+'\nK: golpe forte — aguardando animação própria\nChute — aguardando exportação');
 });
