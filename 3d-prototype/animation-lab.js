@@ -61,38 +61,43 @@ const localFootHeights=()=>{
  const inverse=collider.getWorldMatrix().clone().invert();
  return selectedFeet.map(n=>{n.computeWorldMatrix(true);return B.Vector3.TransformCoordinates(n.getAbsolutePosition(),inverse)});
 };
-let idleHeight=footOffset;
-let previousQ=false,previousJ=false;
-// Keep the genuine breathing idle. Correct arm rotations using the relaxed
-// midpoint of the professionally retargeted walk instead of freezing a step.
-function repairIdleArms(){
- if(!clip.idle||!clip.walk)return;
- for(const name of ['LeftArm','RightArm']){
-   const source=clip.walk.targetedAnimations.find(t=>t.target?.name===name&&/rotationQuaternion/.test(t.animation.targetProperty));
-   const destination=clip.idle.targetedAnimations.find(t=>t.target?.name===name&&/rotationQuaternion/.test(t.animation.targetProperty));
-   if(!source||!destination)continue;
-   const walkKeys=source.animation.getKeys(),idleKeys=destination.animation.getKeys();
-   const q1=walkKeys[Math.floor((walkKeys.length-1)*.25)].value;
-   const q2=walkKeys[Math.floor((walkKeys.length-1)*.75)].value;
-   const relaxed=B.Quaternion.Slerp(q1,q2,.5).normalize();
-   // Retain subtle breathing by preserving a fraction of idle arm movement.
-   destination.animation.setKeys(idleKeys.map(k=>({...k,
-     value:B.Quaternion.Slerp(relaxed,k.value,.10).normalize()
-   })));
+// The exported Idle_Loop lifts both legs. Build a planted neutral pose by
+// averaging two opposite walking phases on the SAME rig.
+function createPlantedIdle(){
+ if(!clip.walk)return clip.idle;
+ const g=new B.AnimationGroup('Idle_Planted',scene);
+ const walk=clip.walk;
+ for(const track of walk.targetedAnimations){
+   const src=track.animation,keys=src.getKeys();
+   if(!keys.length)continue;
+   const a=keys[Math.min(keys.length-1,Math.floor(keys.length*.05))].value;
+   const b=keys[Math.min(keys.length-1,Math.floor(keys.length*.55))].value;
+   if(a==null||b==null)continue;
+   let v;
+   if(src.dataType===B.Animation.ANIMATIONTYPE_QUATERNION)v=B.Quaternion.Slerp(a,b,.5).normalize();
+   else if(src.dataType===B.Animation.ANIMATIONTYPE_VECTOR3)v=B.Vector3.Lerp(a,b,.5);
+   else if(src.dataType===B.Animation.ANIMATIONTYPE_FLOAT)v=(a+b)/2;
+   else continue;
+   const anim=new B.Animation('neutral_'+src.name,src.targetProperty,30,src.dataType,B.Animation.ANIMATIONLOOPMODE_CYCLE);
+   anim.setKeys([{frame:0,value:v},{frame:30,value:v.clone?.()??v}]);
+   g.addTargetedAnimation(anim,track.target);
  }
+ return g.targetedAnimations.length?g:clip.idle;
 }
-repairIdleArms();
-function calibrateIdleFeet(){
- if(!clip.idle||!selectedFeet.length)return;
- clip.idle.start(true,1,clip.idle.from,clip.idle.to,false);
- clip.idle.goToFrame(clip.idle.from);
- const foot=localFootHeights();
- const bottom=Math.min(...foot.map(p=>p.y));
- // Bone joint is at the ankle, not the sneaker sole (~10 cm lower).
- idleHeight=footOffset+B.Scalar.Clamp(-.95-bottom,-.48,.48);
- clip.idle.stop();
+const plantedIdle=createPlantedIdle();
+function idlePose(){play(plantedIdle||clip.walk,true,1);}
+function visualSoleY(){
+ // Deformed mesh, not the ankle joint: accounts for the size of the shoes
+ // and the changing full-body pose during the roll.
+ let lowest=Infinity;
+ for(const m of meshes){
+   m.refreshBoundingInfo(true);
+   m.computeWorldMatrix(true);
+   const y=m.getBoundingInfo()?.boundingBox?.minimumWorld?.y;
+   if(Number.isFinite(y))lowest=Math.min(lowest,y);
+ }
+ return lowest;
 }
-function idlePose(){play(clip.idle||clip.walk,true,.85);}
 const play=(g,loop=true,speed=1)=>{
  if(!g)return;
  if(active===g){if(!g.isPlaying){g.stop();g.start(loop,speed,g.from,g.to,false)}return;}
@@ -164,28 +169,24 @@ scene.onBeforeRenderObservable.add(()=>{
   else idlePose();
  }
  prevGrounded=grounded;
- // Animated hip translation moves the feet during the Idle loop.
- // Keep the feet attached to the actual floor under the collision capsule
- // on EVERY frame, rather than trusting the first frame's height.
- const standingIdle=active===clip.idle&&!moving&&grounded&&!rolling&&!locked;
- let targetRootY=footOffset;
- let ankleMin=null;
- if(standingIdle&&selectedFeet.length){
-   const feetNow=localFootHeights();
-   ankleMin=Math.min(...feetNow.map(v=>v.y));
-   if(Number.isFinite(ankleMin)){
-     // Both values are in collider-local coordinates: collider floor = -1.04.
-     // Ankles normally sit slightly above the soles.
-     const targetAnkle=-.96;
-     const error=B.Scalar.Clamp(targetAnkle-ankleMin,-.38,.38);
-     targetRootY=B.Scalar.Clamp(root.position.y+error,footOffset-.65,footOffset+.35);
+ // Sample the lowest SKINNED MESH vertex bounds, not ankle joints.
+ // Apply to planted idle and roll; keep collider physics untouched.
+ const groundVisual=(standingIdle||rolling)&&grounded;
+ let soleY=null;
+ if(groundVisual){
+   const soleWorld=visualSoleY();
+   if(Number.isFinite(soleWorld)){
+     soleY=soleWorld;
+     const floorWorld=collider.position.y-1.04;
+     const correction=B.Scalar.Clamp(floorWorld+.025-soleWorld,-.55,1.35);
+     root.position.y+=correction*Math.min(1,dt*20);
    }
+ }else{
+   root.position.y=B.Scalar.Lerp(root.position.y,footOffset,Math.min(1,dt*9));
  }
- root.position.y=B.Scalar.Lerp(root.position.y,targetRootY,Math.min(1,dt*(standingIdle?16:9)));
  const desired=collider.position.add(new B.Vector3(0,.65,0));camera.target=B.Vector3.Lerp(camera.target,desired,Math.min(1,dt*8));
- report('Animação: '+(active?.name||'nenhuma')+'\nPosição: '+collider.position.y.toFixed(2)+' m | No chão: '+grounded+'\nMovimento: '+(moving?'sim':'não')+' | Clipes: '+groups.length+'\nOssos dos pés: '+selectedFeet.length+' | Pé Y: '+(ankleMin===null?'--':ankleMin.toFixed(2))+' | Ajuste: '+(root.position.y-footOffset).toFixed(2)+'\nK: golpe forte — aguardando animação própria\nChute — aguardando exportação');
+ report('Animação: '+(active?.name||'nenhuma')+'\nPosição: '+collider.position.y.toFixed(2)+' m | No chão: '+grounded+'\nMovimento: '+(moving?'sim':'não')+' | Clipes: '+groups.length+'\nSola Y: '+(soleY===null?'--':soleY.toFixed(2))+' | Ajuste: '+(root.position.y-footOffset).toFixed(2)+'\nK: golpe forte — aguardando animação própria\nChute — aguardando exportação');
 });
-calibrateIdleFeet();
 idlePose();
 report('Modelo carregado: '+groups.length+' animações. Verifique Idle em prévia.');
 engine.runRenderLoop(()=>scene.render());window.addEventListener('resize',()=>engine.resize());
