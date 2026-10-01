@@ -225,6 +225,16 @@ function setBaseWeights(g,weight){
  const p=locomotionPairs.get(g);if(!p)return;
  p.low?.setWeightForAllAnimatables(weight);
  p.up?.setWeightForAllAnimatables(weight*(1-attackBlend));
+ // Match playback cadence with actual capsule velocity, rather than
+ // running every walking or sprint clip at a fixed speed.
+ let ratio=1;
+ if(g===C.walk)ratio=B.Scalar.Clamp(velocity.length()/2.8,.80,1.20);
+ else if(g===C.jog)ratio=B.Scalar.Clamp(velocity.length()/3.7,.82,1.22);
+ else if(g===C.run)ratio=B.Scalar.Clamp(velocity.length()/5.2,.84,1.22);
+ else if(g===C.crouchMove)ratio=B.Scalar.Clamp(velocity.length()/1.45,.80,1.15);
+ else if(g===C.neutral)ratio=.85;
+ if(p.low)p.low.speedRatio=ratio;
+ if(p.up)p.up.speedRatio=ratio;
 }
 function baseTo(next){
  if(!next||base===next)return;
