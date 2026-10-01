@@ -4,7 +4,13 @@
 <style>
 *{box-sizing:border-box}body{margin:0;background:#080f19;color:#effbff;font-family:Arial,sans-serif;overflow:hidden}
 canvas{width:100vw;height:100vh;display:block;touch-action:none}
-#panel{position:fixed;top:16px;left:16px;max-width:410px;padding:17px;background:#07121de9;border:1px solid #38cde8;border-radius:12px;line-height:1.5;z-index:2}
+#panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(430px,calc(100vw - 28px));max-height:min(82dvh,690px);overflow:auto;overscroll-behavior:contain;padding:18px;background:#07121df5;border:1px solid #38cde8;border-radius:15px;line-height:1.48;z-index:25;box-shadow:0 14px 48px #000b}
+#panel[hidden],#menu-backdrop[hidden]{display:none!important}
+#lab-menu{position:fixed;top:calc(env(safe-area-inset-top) + 12px);left:calc(env(safe-area-inset-left) + 12px);z-index:21;padding:9px 13px;border-radius:12px;background:#071d30e8;font-weight:bold;min-height:42px}
+#menu-backdrop{position:fixed;inset:0;z-index:24;background:#020913a0;touch-action:none}
+#close-panel{float:right;min-width:42px;min-height:42px;font-size:20px;background:#163c50;margin:0 0 8px 8px}
+#panel h2{font-size:20px;line-height:1.25;margin-right:36px}
+#panel p{margin:9px 0;font-size:12px}
 h2{margin:0 0 6px;color:#37ebed;letter-spacing:2px}small{color:#b6cbd7}
 #status{font:12px monospace;color:#c6fcca;white-space:pre-line;margin-top:8px}
 kbd{background:#23404b;border-radius:4px;padding:2px 5px}
@@ -12,10 +18,10 @@ select,button{background:#0f3442;color:white;border:1px solid #42cbd3;border-rad
 button{margin:5px 4px 0 0}
 #camera-options{margin:8px 0 12px;padding:8px 0;border-top:1px solid #295366;border-bottom:1px solid #295366;font-size:12px}
 #camera-options input[type="range"]{width:165px;accent-color:#40e9ed}#camera-options input[type="checkbox"]{accent-color:#40e9ed}
-@media(max-width:640px){#panel{font-size:11px;padding:8px;max-width:55vw;max-height:44vh;overflow:auto}#panel h2{font-size:15px}#panel p{display:none}#panel small{font-size:9px}}
+@media(max-width:640px){#panel{font-size:12px;padding:13px;width:calc(100vw - 22px);max-height:84dvh}#panel h2{font-size:18px}#panel p{display:block;font-size:11px}#panel small{font-size:10px}}
 #touch-ui[hidden]{display:none!important}
 #touch-ui{position:fixed;inset:0;pointer-events:none;z-index:3;user-select:none;-webkit-user-select:none;touch-action:none}
-#touch-look{position:absolute;top:0;right:0;width:56%;height:100%;pointer-events:auto;touch-action:none}
+#touch-look{position:absolute;top:0;right:0;width:60%;height:100%;pointer-events:auto;touch-action:none}
 #touch-stick{position:absolute;bottom:7%;left:5%;width:132px;height:132px;border-radius:50%;background:#263c52a8;border:2px solid #69dcf19e;pointer-events:auto;touch-action:none;display:grid;place-items:center}
 #touch-knob{width:54px;height:54px;border-radius:50%;background:#64d9f2a6;border:2px solid #e5ffff}
 #touch-actions{position:absolute;bottom:5%;right:3%;display:grid;grid-template-columns:repeat(3,61px);gap:7px;pointer-events:none}
@@ -38,7 +44,9 @@ button{margin:5px 4px 0 0}
   <button data-game-key="KeyK">SOCO 2</button>
  </div>
 </div>
-<div id="panel"><h2>UNDER PRESSURE<br>ANIMATION LAB</h2><small>Mapa de testes V16 · câmera terceira pessoa</small><p><b>TECLADO + MOUSE</b><br>WASD · Mover | 1 clique no jogo: mouse livre | Shift · Correr | Esc: soltar mouse<br>Espaço · Pular / saltar obstáculo | E · Escalar<br>Ctrl / C · Agachar / deslizar correndo | Q · Esquivar<br>Clique esquerdo / J · Jab | Clique direito / K · Direto</p><p><b>CONTROLE</b><br>Analógico esquerdo · Mover | Direito · Câmera<br>A · Pular | B · Esquivar | X · Jab | Y · Direto<br>LB · Agachar | RB · Correr | Direcional ↑ · Escalar</p>
+<button id="lab-menu" type="button" aria-expanded="false" aria-controls="panel">☰ MENU</button>
+<div id="menu-backdrop" hidden></div>
+<div id="panel" hidden role="dialog" aria-modal="true" aria-label="Menu do Animation Lab"><button id="close-panel" type="button" aria-label="Fechar menu">×</button><h2>UNDER PRESSURE<br>ANIMATION LAB</h2><small>Mapa de testes V17 · menu compacto + mobile</small><p><b>TECLADO + MOUSE</b><br>WASD · Mover | 1 clique no jogo: mouse livre | Shift · Correr | Esc: soltar mouse<br>Espaço · Pular / saltar obstáculo | E · Escalar<br>Ctrl / C · Agachar / deslizar correndo | Q · Esquivar<br>Clique esquerdo / J · Jab | Clique direito / K · Direto</p><p><b>CONTROLE</b><br>Analógico esquerdo · Mover | Direito · Câmera<br>A · Pular | B · Esquivar | X · Jab | Y · Direto<br>LB · Agachar | RB · Correr | Direcional ↑ · Escalar</p>
 <div id="camera-options"><label for="look-sensitivity">Sensibilidade da câmera: <span id="sensitivity-value">25</span></label><br>
 <input id="look-sensitivity" type="range" min="9" max="55" value="25" aria-label="Sensibilidade do mouse"><br>
 <label><input id="invert-look" type="checkbox"> Inverter movimento vertical</label></div>
@@ -49,4 +57,4 @@ button{margin:5px 4px 0 0}
 </div>
 <script src="https://cdn.babylonjs.com/babylon.js"></script>
 <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-<script src="./3d-prototype/animation-lab-v16.js?v=16"></script></body></html>
+<script src="./3d-prototype/animation-lab-v17.js?v=17"></script></body></html>
