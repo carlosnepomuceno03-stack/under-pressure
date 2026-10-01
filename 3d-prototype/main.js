@@ -2027,6 +2027,7 @@ window.UP3D={
   makeMat:mat,
   makeEmissive:emissiveMat,
   setGameplayLocked(v){gameplayLocked=!!v;},
+  getMotionState(){ return {grounded,parkourState,verticalSpeed:vy}; },
   getStealthState(){
     const m=mobileInput();
     const crouching=!!(keys.ControlLeft||keys.ControlRight||keys.KeyC||m.crouch);
