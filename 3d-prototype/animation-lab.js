@@ -53,6 +53,7 @@ const clip={idle:get('Idle_Loop'),walk:get('Walk_Loop'),jog:get('Jog_Fwd_Loop'),
 groups.forEach(g=>{const o=document.createElement('option');o.value=g.name;o.textContent=g.name;preview.append(o)});
 let active=null,locked=false,lastAction='',selected='';
 let rolling=false,rollDirection=new B.Vector3(0,0,1),rollElapsed=0,rollDuration=.65;
+let previousQ=false;
 const skeletonFeet=container.transformNodes.filter(n=>/^(leftfoot|rightfoot|mixamorig.*foot)$/i.test(n.name||''));
 const selectedFeet=skeletonFeet.length>=2?skeletonFeet.slice(0,2):
  (container.skeletons||[]).flatMap(sk=>sk.bones).filter(b=>/^(leftfoot|rightfoot|mixamorig.*foot)$/i.test(b.name||'')).map(b=>b.getTransformNode?.()).filter(Boolean).slice(0,2);
