@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UNDER PRESSURE | Animation Lab</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#080f19;color:#effbff;font-family:Arial,sans-serif;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block;touch-action:none}
+#panel{position:fixed;top:16px;left:16px;max-width:375px;padding:17px;background:#07121de9;border:1px solid #38cde8;border-radius:12px;line-height:1.5;z-index:2}
+h2{margin:0 0 6px;color:#37ebed;letter-spacing:2px}small{color:#b6cbd7}
+#status{font:12px monospace;color:#c6fcca;white-space:pre-line;margin-top:8px}
+kbd{background:#23404b;border-radius:4px;padding:2px 5px}
+select,button{background:#0f3442;color:white;border:1px solid #42cbd3;border-radius:6px;padding:7px;cursor:pointer}
+button{margin:5px 4px 0 0}
+@media(max-width:640px){#panel{font-size:12px;padding:9px;max-width:82vw}}
+</style></head>
+<body><canvas id="game"></canvas>
+<div id="panel"><h2>UNDER PRESSURE<br>ANIMATION LAB</h2><small>Mapa de testes V1 · original preservado</small><p>WASD mover · Shift sprint · Espaço pular<br>C agachar · Q esquiva · J soco · K golpe pesado*</p>
+<label>Prévia: <select id="preview"><option value="">CONTROLE NORMAL</option></select></label>
+<button id="reset">REINICIAR POSIÇÃO</button><button id="camera">GIRAR CÂMERA</button>
+<div id="status">Carregando...</div>
+<small>*O pacote atual não contém chute nem golpe forte específico. Esses botões não simulam animações inexistentes.</small>
+</div>
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+<script src="./3d-prototype/animation-lab.js?v=1"></script></body></html>
