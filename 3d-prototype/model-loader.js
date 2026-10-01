@@ -98,6 +98,7 @@
     root:null,
     pelvis:['Hips','Pelvis'],
     spine01:['Spine'],
+    spine02:['Spine1','Spine2','Chest'],
     spine03:['Spine2','Spine1','Chest'],
     neck01:['Neck'],
     head:['Head'],
@@ -159,7 +160,8 @@
         if(!t.isDisposed?.())t.dispose(false,true);
       }
 
-      console.info('[Under Pressure] UAL retarget ready',out.map(g=>g.name));
+      console.info('[Under Pressure] UAL retarget ready',out.map(g=>({clip:g.name,tracks:g.targetedAnimations.length})), 'targetNodes',lookup.size);
+      if(!out.length)console.warn('[Under Pressure] No UAL tracks matched the player skeleton: check bone names and rig compatibility');
       return out;
     }catch(err){
       console.warn('[Under Pressure] UAL animation pack not available yet',err);
@@ -241,6 +243,7 @@
     status('Modelo: '+loadedFile+'\nRig: '+(result.skeletons||[]).length+' skeleton(s)\nClipes originais: '+nativeGroups.length+'\nCarregando animações...');
     const ualGroups=STATIC_TEST?[]:await loadUALAnimations(scene,result);
     const groups=ualGroups.length?ualGroups:nativeGroups;
+    if(!STATIC_TEST&&DEBUG_PLAYER)status('Modelo: '+loadedFile+'\nAnimações UAL: '+ualGroups.length+'\nNativas: '+nativeGroups.length+'\n'+(ualGroups.length?'Pacote profissional ATIVO':'Pacote profissional ausente/incompatível'));
 
     const by=(...names)=>groups.find(g=>{
       const x=(g.name||'').toLowerCase();
