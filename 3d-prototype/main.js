@@ -1,9 +1,15 @@
 const canvas=document.getElementById('renderCanvas');
-const BUILD='REAL RIG PLAYER V57';
+const BUILD='UAL ANIMS + FLOOR + PERF V58';
 const buildEl=document.getElementById('buildTag');
 if(buildEl)buildEl.textContent=BUILD;
-const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
+const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:false,stencil:true});
+const pixelLoad=(innerWidth*innerHeight*Math.pow(Math.min(devicePixelRatio||1,2),2));
+if(pixelLoad>1500000){
+  engine.setHardwareScalingLevel(Math.min(1.25,Math.sqrt(pixelLoad/1500000)));
+}
 const scene=new BABYLON.Scene(engine);
+scene.skipPointerMovePicking=true;
+if(BABYLON.ScenePerformancePriority)scene.performancePriority=BABYLON.ScenePerformancePriority.Intermediate;
 scene.clearColor=new BABYLON.Color4(.025,.035,.075,1);
 scene.fogMode=BABYLON.Scene.FOGMODE_EXP2;
 scene.fogDensity=.0048;
@@ -116,9 +122,8 @@ wallLight.diffuseTexture=makeSurfaceTexture('wallLightTex','#67666c',['#79777d',
 concrete.diffuseTexture=makeSurfaceTexture('concreteTex','#8b8781',['#77736e','#a09a92','#66625e']);
 roofMat.diffuseTexture=makeSurfaceTexture('roofTex','#61362f',['#7b493e','#4c2a25','#8b5143']);
 
-const glowLayer=new BABYLON.GlowLayer('worldGlow',scene,{blurKernelSize:16});
-glowLayer.intensity=.22;
-glowLayer.intensity=.34;
+const glowLayer=new BABYLON.GlowLayer('worldGlow',scene,{blurKernelSize:8});
+glowLayer.intensity=.26;
 
 const puddleWarm=mat('puddleWarm','#ff8c2b');puddleWarm.alpha=.18;puddleWarm.specularColor=new BABYLON.Color3(1,.72,.42);puddleWarm.specularPower=128;
 const puddlePink=mat('puddlePink','#ff2e9e');puddlePink.alpha=.15;puddlePink.specularColor=new BABYLON.Color3(1,.3,.65);puddlePink.specularPower=128;
@@ -1341,6 +1346,7 @@ function animateRig(dt,moveAmount,isRunning,isJumping,isClimbing,isCrouching=fal
 // No pointer lock, no click, no auto-recentering, no hidden inversion.
 const camera=new BABYLON.FreeCamera('cam',new BABYLON.Vector3(0,3,-8),scene);
 camera.minZ=.1;
+camera.maxZ=95;
 
 let camYaw=0;
 let camPitch=.16;
@@ -2075,10 +2081,10 @@ window.UP3D={
 };
 
 // Lightweight dynamic shadows: character only on mobile, character + nearby props on desktop.
-const shadowMapSize=matchMedia('(pointer:coarse)').matches?512:1024;
+const shadowMapSize=matchMedia('(pointer:coarse)').matches?384:768;
 const shadowGen=new BABYLON.ShadowGenerator(shadowMapSize,sun);
 shadowGen.useBlurExponentialShadowMap=true;
-shadowGen.blurKernel=12;
+shadowGen.blurKernel=8;
 shadowGen.bias=.0025;
 for(const mesh of scene.meshes){
   if(mesh===player||mesh.parent===rigRoot||mesh.parent===lShoulder||mesh.parent===rShoulder||
