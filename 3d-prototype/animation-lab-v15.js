@@ -223,7 +223,7 @@ function getShoeY(){
  for(const f of feet){f.computeWorldMatrix(true);lowest=Math.min(lowest,f.getAbsolutePosition().y)}
  return lowest;
 }
-let soleCorrection=0,groundSample=0,lastGroundBottom=null,uiLastUpdate=0;
+let soleCorrection=0,targetSoleCorrection=0,groundSample=0,lastGroundBottom=null,uiLastUpdate=0;
 function actualModelBottom(){
  let min=Infinity;
  for(const mesh of meshes){
@@ -238,21 +238,25 @@ function actualModelBottom(){
 const footNodes=model.transformNodes.filter(n=>/^(leftfoot|rightfoot)$/i.test(n.name||""));
 const toeNodes=model.transformNodes.filter(n=>/^(lefttoebase|righttoebase|lefttoe|righttoe)$/i.test(n.name||""));
 function groundVisual(dt,still){
- if(!grounded){soleCorrection=B.Scalar.Lerp(soleCorrection,0,Math.min(1,dt*9));root.position.y=restY+soleCorrection;return}
- // All animations, including the roll, are grounded against the real
- // skinned visual geometry. Never move the physics capsule to fit an animation.
+ if(!grounded){
+  targetSoleCorrection=0;
+  soleCorrection=B.Scalar.Lerp(soleCorrection,0,Math.min(1,dt*8));
+  root.position.y=restY+soleCorrection;return;
+ }
+ // Sample skinned geometry only 8 times a second, compute one target
+ // offset per sample; interpolate every render frame without drifting.
  groundSample+=dt;
  if(groundSample>.125||lastGroundBottom===null){
   groundSample=0;
   try{lastGroundBottom=actualModelBottom()}catch(e){lastGroundBottom=null}
- }
- const bottom=lastGroundBottom;
- groundDiagnostic=bottom??0;
- if(bottom!==null){
+  if(lastGroundBottom!==null){
    const floor=collider.position.y-1.02;
-   const error=B.Scalar.Clamp(floor+.018-bottom,-.24,.24);
-   soleCorrection=B.Scalar.Clamp(soleCorrection+error*Math.min(1,dt*(roll||actionState?19:14)),-1.65,.55);
+   const error=B.Scalar.Clamp(floor+.018-lastGroundBottom,-.4,.4);
+   targetSoleCorrection=B.Scalar.Clamp(soleCorrection+error,-1.65,.55);
+  }
  }
+ groundDiagnostic=lastGroundBottom??0;
+ soleCorrection=B.Scalar.Lerp(soleCorrection,targetSoleCorrection,1-Math.exp(-(roll||actionState?22:14)*dt));
  root.position.y=restY+soleCorrection;
 }
 const ALL=[...groups,C.neutral,C.upperJab,C.upperCross].filter(Boolean);
