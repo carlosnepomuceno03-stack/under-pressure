@@ -45,13 +45,29 @@ for(const m of meshes){m.computeWorldMatrix(true);const bb=m.getBoundingInfo().b
 const scale=2.08/(max.y-min.y);root.scaling.setAll(scale);root.computeWorldMatrix(true);
 min=new B.Vector3(Infinity,Infinity,Infinity);
 for(const m of meshes){m.computeWorldMatrix(true);min=B.Vector3.Minimize(min,m.getBoundingInfo().boundingBox.minimumWorld)}
-const footOffset=-1.04-min.y;root.position.y=footOffset;
+const footOffset=-1.04-min.y-.20;root.position.y=footOffset;
 root.parent=collider;
 root.rotation.y=modelFacingOffset;
 const get=(name)=>groups.find(g=>g.name.toLowerCase()===name.toLowerCase());
 const clip={idle:get('Idle_Loop'),walk:get('Walk_Loop'),jog:get('Jog_Fwd_Loop'),sprint:get('Sprint_Loop'),crouch:get('Crouch_Idle_Loop'),crouchWalk:get('Crouch_Fwd_Loop'),jumpStart:get('Jump_Start'),jumpLoop:get('Jump_Loop'),jumpLand:get('Jump_Land'),roll:get('Roll'),jab:get('Punch_Jab'),cross:get('Punch_Cross'),climb:get('ClimbUp_1m')};
 groups.forEach(g=>{const o=document.createElement('option');o.value=g.name;o.textContent=g.name;preview.append(o)});
 let active=null,locked=false,lastAction='',selected='';
+let rolling=false,rollDirection=new B.Vector3(0,0,1),rollElapsed=0,rollDuration=.65;
+let previousQ=false,previousJ=false;
+// The exported Idle_Loop contains a rest/T-pose. Freeze a natural frame
+// from the baked walk for idle until we replace Idle_Loop at source.
+function idlePose(){
+ const source=clip.walk||clip.idle;
+ if(!source)return;
+ if(active!==source||source.isPlaying){
+   for(const a of groups)a.stop();
+   active=source;
+   source.start(false,1,source.from,source.to,false);
+   source.goToFrame(source.from+(source.to-source.from)*.23);
+   source.pause();
+ }
+ mode='Idle (pose temporária)';
+}
 const play=(g,loop=true,speed=1)=>{
  if(!g||active===g)return;
  for(const a of groups)a.stop();
@@ -91,29 +107,41 @@ scene.onBeforeRenderObservable.add(()=>{
  if(grounded&&vertical<0){vertical=-.15;jumpUsed=false}
  if(keys.has('Space')&&grounded&&!jumpUsed){vertical=6.5;jumpUsed=true;grounded=false;play(clip.jumpStart||clip.jumpLoop,false)}
  vertical-=18*dt;
- // Collision resolves floor and obstacles; the model root never drives collider height.
- collider.moveWithCollisions(new B.Vector3(locked?0:move.x*speed*dt,vertical*dt,locked?0:move.z*speed*dt));
- if(!locked&&moving)collider.rotation.y=yaw;
- if(keys.has('KeyQ')&&grounded&&!locked){
-   const dodge=move.lengthSquared()>.1?move:forward();
-   yaw=Math.atan2(dodge.x,dodge.z);collider.rotation.y=yaw;
-   locked=true;actionUntil=now+650;play(clip.roll,false);
+ // Roll uses the same collision system as walking. Keep direction
+ // captured at button press and advance independently of held WASD keys.
+ if(rolling){
+   rollElapsed+=dt;
+   const t=Math.min(1,rollElapsed/rollDuration);
+   const rollSpeed=7.5-(4.5*t);
+   collider.moveWithCollisions(rollDirection.scale(rollSpeed*dt).add(new B.Vector3(0,vertical*dt,0)));
+   if(t>=1){rolling=false;locked=false;root.rotation.y=modelFacingOffset;}
+ }else{
+   collider.moveWithCollisions(new B.Vector3(locked?0:move.x*speed*dt,vertical*dt,locked?0:move.z*speed*dt));
  }
+ if(!locked&&moving)collider.rotation.y=yaw;
+ const qHeld=keys.has('KeyQ');
+ if(qHeld&&!previousQ&&grounded&&!locked&&clip.roll){
+   rollDirection=(move.lengthSquared()>.1?move.clone():forward()).normalize();
+   yaw=Math.atan2(rollDirection.x,rollDirection.z);collider.rotation.y=yaw;
+   rolling=true;rollElapsed=0;locked=true;actionUntil=now+rollDuration*1000;
+   play(clip.roll,false);
+ }
+ previousQ=qHeld;
  if(keys.has('KeyJ')&&grounded&&!locked){locked=true;actionUntil=now+430;play(clip.jab||clip.cross,false)}
  // Heavy and kick deliberately remain unbound until their distinct clips are exported.
- if(now>=actionUntil&&locked){locked=false;root.rotation.y=modelFacingOffset}
+ if(now>=actionUntil&&locked&&!rolling){locked=false;root.rotation.y=modelFacingOffset}
  if(!locked){
   if(!grounded){if(active!==clip.jumpStart||!active?.isPlaying)play(clip.jumpLoop||clip.idle,true)}
   else if(!prevGrounded){play(clip.jumpLand||clip.idle,false);locked=true;actionUntil=now+160}
   else if(keys.has('KeyC'))play(moving?clip.crouchWalk||clip.crouch:clip.crouch,true);
   else if(moving)play(keys.has('ShiftLeft')?clip.sprint||clip.jog:clip.walk,true);
-  else play(clip.idle,true);
+  else idlePose();
  }
  prevGrounded=grounded;
  const desired=collider.position.add(new B.Vector3(0,.65,0));camera.target=B.Vector3.Lerp(camera.target,desired,Math.min(1,dt*8));
  report('Animação: '+(active?.name||'nenhuma')+'\nPosição: '+collider.position.y.toFixed(2)+' m | No chão: '+grounded+'\nMovimento: '+(moving?'sim':'não')+' | Clipes: '+groups.length+'\nK: golpe forte — aguardando animação própria\nChute — aguardando exportação');
 });
-play(clip.idle||groups[0],true);
+idlePose();
 report('Modelo carregado: '+groups.length+' animações. Verifique Idle em prévia.');
 engine.runRenderLoop(()=>scene.render());window.addEventListener('resize',()=>engine.resize());
 })();
