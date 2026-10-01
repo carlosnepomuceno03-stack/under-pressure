@@ -289,17 +289,15 @@
     let wasClimbing=false;
     // Foot joint height changes with poses; visually align soles to player collider.
     const feet=['LeftFoot','RightFoot'].map(name=>(result.transformNodes||[]).find(n=>n.name===name)).filter(Boolean);
-    let referenceFoot=null;
-    const originalHeight=importRoot.position.y;
+    const soleBelowFoot=.09*scale;
     function alignFeet(){
       if(!feet.length)return;
       const inv=player.getWorldMatrix().clone().invert();
       const ys=feet.map(n=>BABYLON.Vector3.TransformCoordinates(n.getAbsolutePosition(),inv).y);
       const bottom=Math.min(...ys);
       if(!Number.isFinite(bottom))return;
-      if(referenceFoot===null)referenceFoot=bottom;
-      const correction=BABYLON.Scalar.Clamp(referenceFoot-bottom,-.40,.40);
-      importRoot.position.y=BABYLON.Scalar.Lerp(importRoot.position.y,originalHeight+correction,.22);
+      const correction=BABYLON.Scalar.Clamp(VISUAL_FEET_Y+soleBelowFoot-bottom,-.45,.45);
+      importRoot.position.y+=correction*.25;
     }
 
     function play(g,loop=true,speed=1){
