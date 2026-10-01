@@ -61,53 +61,42 @@ const localFootHeights=()=>{
  const inverse=collider.getWorldMatrix().clone().invert();
  return selectedFeet.map(n=>{n.computeWorldMatrix(true);return B.Vector3.TransformCoordinates(n.getAbsolutePosition(),inverse)});
 };
-let idleFrame=null,idleHeight=footOffset,pausedIdle=false;
-function selectIdleFrame(){
- const source=clip.walk||clip.idle;
- if(!source)return;
- source.start(false,1,source.from,source.to,false);
- if(selectedFeet.length===2){
-   let best=Infinity;
-   for(let k=0;k<=24;k++){
-     const frame=source.from+(source.to-source.from)*k/24;
-     source.goToFrame(frame);
-     const foot=localFootHeights();
-     const heightDiff=Math.abs(foot[0].y-foot[1].y);
-     const separation=Math.hypot(foot[0].x-foot[1].x,foot[0].z-foot[1].z);
-     const score=heightDiff*2+Math.abs(separation-.23)*.4;
-     if(score<best){best=score;idleFrame=frame;}
-   }
- }else{idleFrame=source.from+(source.to-source.from)*.5;}
- source.goToFrame(idleFrame);
- const foot=localFootHeights();
- if(foot.length){
-   const lowest=Math.min(...foot.map(v=>v.y));
-   idleHeight=footOffset+B.Scalar.Clamp(-.94-lowest,-.35,.45);
- }
- source.stop();
- report('Postura neutra calibrada: '+(selectedFeet.length===2?'pelos 2 pés':'quadro central; sem ossos dos pés'));
-}
+let idleHeight=footOffset;
 let previousQ=false,previousJ=false;
-// The exported Idle_Loop contains a rest/T-pose. Freeze a natural frame
-// from the baked walk for idle until we replace Idle_Loop at source.
-function idlePose(){
- const source=clip.walk||clip.idle;
- if(!source)return;
- if(!pausedIdle||active!==source||source.isPlaying){
-   for(const a of groups)a.stop();
-   active=source;
-   source.start(false,1,source.from,source.to,false);
-   source.goToFrame(idleFrame??source.from);
-   source.pause();
-   pausedIdle=true;
+// Keep the genuine breathing idle. Correct arm rotations using the relaxed
+// midpoint of the professionally retargeted walk instead of freezing a step.
+function repairIdleArms(){
+ if(!clip.idle||!clip.walk)return;
+ for(const name of ['LeftArm','RightArm']){
+   const source=clip.walk.targetedAnimations.find(t=>t.target?.name===name&&/rotationQuaternion/.test(t.animation.targetProperty));
+   const destination=clip.idle.targetedAnimations.find(t=>t.target?.name===name&&/rotationQuaternion/.test(t.animation.targetProperty));
+   if(!source||!destination)continue;
+   const walkKeys=source.animation.getKeys(),idleKeys=destination.animation.getKeys();
+   const q1=walkKeys[Math.floor((walkKeys.length-1)*.25)].value;
+   const q2=walkKeys[Math.floor((walkKeys.length-1)*.75)].value;
+   const relaxed=B.Quaternion.Slerp(q1,q2,.5).normalize();
+   // Retain subtle breathing by preserving a fraction of idle arm movement.
+   destination.animation.setKeys(idleKeys.map(k=>({...k,
+     value:B.Quaternion.Slerp(relaxed,k.value,.10).normalize()
+   })));
  }
- mode='Idle (postura calibrada)';
 }
+repairIdleArms();
+function calibrateIdleFeet(){
+ if(!clip.idle||!selectedFeet.length)return;
+ clip.idle.start(true,1,clip.idle.from,clip.idle.to,false);
+ clip.idle.goToFrame(clip.idle.from);
+ const foot=localFootHeights();
+ const bottom=Math.min(...foot.map(p=>p.y));
+ // Bone joint is at the ankle, not the sneaker sole (~10 cm lower).
+ idleHeight=footOffset+B.Scalar.Clamp(-.95-bottom,-.48,.48);
+ clip.idle.stop();
+}
+function idlePose(){play(clip.idle||clip.walk,true,.85);}
 const play=(g,loop=true,speed=1)=>{
  if(!g)return;
- if(active===g){if(!g.isPlaying){g.stop();g.start(loop,speed,g.from,g.to,false)}pausedIdle=false;return;}
+ if(active===g){if(!g.isPlaying){g.stop();g.start(loop,speed,g.from,g.to,false)}return;}
  for(const a of groups)a.stop();
- pausedIdle=false;
  active=g;g.start(loop,speed,g.from,g.to,false);mode=g.name;
 };
 preview.onchange=()=>{selected=preview.value;active=null; if(selected)play(get(selected),true)};
@@ -175,12 +164,12 @@ scene.onBeforeRenderObservable.add(()=>{
   else idlePose();
  }
  prevGrounded=grounded;
- const desiredRootHeight=pausedIdle&&!moving&&grounded&&!rolling?idleHeight:footOffset;
+ const desiredRootHeight=active===clip.idle&&!moving&&grounded&&!rolling?idleHeight:footOffset;
  root.position.y=B.Scalar.Lerp(root.position.y,desiredRootHeight,Math.min(1,dt*10));
  const desired=collider.position.add(new B.Vector3(0,.65,0));camera.target=B.Vector3.Lerp(camera.target,desired,Math.min(1,dt*8));
  report('Animação: '+(active?.name||'nenhuma')+'\nPosição: '+collider.position.y.toFixed(2)+' m | No chão: '+grounded+'\nMovimento: '+(moving?'sim':'não')+' | Clipes: '+groups.length+'\nK: golpe forte — aguardando animação própria\nChute — aguardando exportação');
 });
-selectIdleFrame();
+calibrateIdleFeet();
 idlePose();
 report('Modelo carregado: '+groups.length+' animações. Verifique Idle em prévia.');
 engine.runRenderLoop(()=>scene.render());window.addEventListener('resize',()=>engine.resize());
