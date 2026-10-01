@@ -58,8 +58,8 @@ function planted(){
   let value;
   if(a.dataType===B.Animation.ANIMATIONTYPE_QUATERNION)value=B.Quaternion.Slerp(p0,p1,.5).normalize();
   else if(a.dataType===B.Animation.ANIMATIONTYPE_VECTOR3){value=B.Vector3.Lerp(p0,p1,.5);
-    // Position of skeleton root is controlled by collision capsule, not walk/idle clip.
-    if(/hips|pelvis|root/i.test(target?.name||"") && a.targetProperty==="position")value.y=0;
+    // Preserve the rig's calibrated hip height; only the outer collider owns
+    // world movement (the GLB was baked from an in-place retarget).
   }
   else if(a.dataType===B.Animation.ANIMATIONTYPE_FLOAT)value=(p0+p1)/2;
   else continue;
