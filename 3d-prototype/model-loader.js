@@ -1,8 +1,9 @@
 (()=>{
   const PATH='./3d-prototype/assets/characters/player/';
   const FILES=['rigged-model.glb','player_meshy.glb'];
+  const ANIM_FILE='player_ual_anims.glb';
   const TARGET_HEIGHT=2.18;
-  const FEET_OFFSET=-1.46;
+  const VISUAL_FEET_Y=-1.015; // capsule bottom is ~-1.05: keep soles just above collision floor
 
   function boot(){
     if(!window.UP3D?.scene||!window.BABYLON?.SceneLoader){
@@ -18,14 +19,14 @@
     const tex=src.albedoTexture||src.diffuseTexture||null;
     const mat=new BABYLON.StandardMaterial('UP_PlayerMat_'+mesh.uniqueId,scene);
     mat.diffuseColor=new BABYLON.Color3(1,1,1);
-    mat.specularColor=new BABYLON.Color3(.06,.06,.06);
-    mat.emissiveColor=new BABYLON.Color3(.11,.11,.11);
+    mat.specularColor=new BABYLON.Color3(.055,.055,.055);
+    mat.emissiveColor=new BABYLON.Color3(.08,.08,.08);
     mat.backFaceCulling=false;
     mat.alpha=1;
     if(tex){
       mat.diffuseTexture=tex;
       mat.emissiveTexture=tex;
-      mat.emissiveColor=new BABYLON.Color3(.09,.09,.09);
+      mat.emissiveColor=new BABYLON.Color3(.07,.07,.07);
     }
     mesh.material=mat;
   }
@@ -45,6 +46,105 @@
       found=true;
     }
     return found?{min,max,height:max.y-min.y,center:min.add(max).scale(.5)}:null;
+  }
+
+  function normalizeName(name=''){
+    return name
+      .replace(/^mixamorig[:_]?/i,'')
+      .replace(/[^a-z0-9]/gi,'')
+      .toLowerCase();
+  }
+
+  function buildTargetLookup(result){
+    const map=new Map();
+    const nodes=[
+      ...(result.transformNodes||[]),
+      ...(result.meshes||[])
+    ];
+    for(const sk of (result.skeletons||[])){
+      for(const bone of (sk.bones||[])){
+        const tn=bone.getTransformNode?.();
+        if(tn)nodes.push(tn);
+      }
+    }
+    for(const n of nodes){
+      if(!n?.name)continue;
+      map.set(normalizeName(n.name),n);
+    }
+    return map;
+  }
+
+  const SOURCE_TO_TARGET={
+    root:null,
+    pelvis:['Hips','Pelvis'],
+    spine01:['Spine'],
+    spine03:['Spine2','Spine1','Chest'],
+    neck01:['Neck'],
+    head:['Head'],
+    claviclel:['LeftShoulder','ShoulderL'],
+    upperarml:['LeftArm','UpperArmL'],
+    lowerarml:['LeftForeArm','LeftForearm','LowerArmL'],
+    handl:['LeftHand','HandL'],
+    clavicler:['RightShoulder','ShoulderR'],
+    upperarmr:['RightArm','UpperArmR'],
+    lowerarmr:['RightForeArm','RightForearm','LowerArmR'],
+    handr:['RightHand','HandR'],
+    thighl:['LeftUpLeg','LeftUpperLeg','ThighL'],
+    calfl:['LeftLeg','LeftLowerLeg','CalfL'],
+    footl:['LeftFoot','FootL'],
+    thighr:['RightUpLeg','RightUpperLeg','ThighR'],
+    calfr:['RightLeg','RightLowerLeg','CalfR'],
+    footr:['RightFoot','FootR']
+  };
+
+  function targetForSource(sourceName,lookup){
+    const key=normalizeName(sourceName);
+    const aliases=SOURCE_TO_TARGET[key];
+    if(aliases===null)return null;
+    if(aliases){
+      for(const a of aliases){
+        const hit=lookup.get(normalizeName(a));
+        if(hit)return hit;
+      }
+    }
+    return lookup.get(key)||null;
+  }
+
+  async function loadUALAnimations(scene,targetResult){
+    try{
+      const src=await BABYLON.SceneLoader.ImportMeshAsync('',PATH,ANIM_FILE,scene);
+      const lookup=buildTargetLookup(targetResult);
+      const out=[];
+
+      for(const sg of (src.animationGroups||[])){
+        const g=new BABYLON.AnimationGroup(sg.name,scene);
+        let count=0;
+        for(const ta of (sg.targetedAnimations||[])){
+          const target=targetForSource(ta.target?.name||'',lookup);
+          if(!target)continue;
+          const anim=ta.animation.clone();
+          g.addTargetedAnimation(anim,target);
+          count++;
+        }
+        if(count){
+          out.push(g);
+        }else{
+          g.dispose();
+        }
+      }
+
+      for(const g of (src.animationGroups||[]))g.dispose();
+      for(const m of (src.meshes||[]))m.dispose(false,true);
+      for(const t of (src.transformNodes||[])){
+        if(!t.isDisposed?.())t.dispose(false,true);
+      }
+
+      console.info('[Under Pressure] UAL retarget ready',out.map(g=>g.name));
+      return out;
+    }catch(err){
+      console.warn('[Under Pressure] UAL animation pack not available yet',err);
+      return [];
+    }
   }
 
   async function loadPlayer(){
@@ -74,7 +174,7 @@
     }
 
     const meshes=result.meshes||[];
-    const groups=result.animationGroups||[];
+    const nativeGroups=result.animationGroups||[];
     const importRoot=meshes.find(m=>m.name==='__root__')||meshes[0];
 
     if(!importRoot){
@@ -91,8 +191,7 @@
       if((mesh.getTotalVertices?.()||0)>0)readableMaterial(scene,mesh);
     }
 
-    // Preserve the entire imported hierarchy. Measure it in bind pose,
-    // then fit the root to the gameplay collider without touching bones.
+    // Preserve rig hierarchy. Only fit the GLB root to the proven gameplay collider.
     importRoot.parent=null;
     importRoot.rotationQuaternion=null;
     importRoot.rotation.set(0,Math.PI,0);
@@ -101,9 +200,7 @@
     importRoot.computeWorldMatrix(true);
 
     let b=getBounds(meshes);
-    if(!b||!Number.isFinite(b.height)||b.height<.2){
-      throw new Error('Invalid player bounds');
-    }
+    if(!b||!Number.isFinite(b.height)||b.height<.2)throw new Error('Invalid player bounds');
 
     const scale=TARGET_HEIGHT/b.height;
     importRoot.scaling.setAll(scale);
@@ -113,8 +210,13 @@
     b=getBounds(meshes);
     if(!b)throw new Error('Could not fit player');
 
-    importRoot.position.y=FEET_OFFSET-b.min.y;
+    // Fix: old -1.46 value belonged to the procedural character and buried the shoes.
+    importRoot.position.y=VISUAL_FEET_Y-b.min.y;
     importRoot.parent=player;
+
+    // Lightweight UAL animation-only GLB (~410 KB), retargeted onto the good AnnoMotion rig.
+    const ualGroups=await loadUALAnimations(scene,result);
+    const groups=ualGroups.length?ualGroups:nativeGroups;
 
     const by=(...names)=>groups.find(g=>{
       const x=(g.name||'').toLowerCase();
@@ -128,21 +230,25 @@
       sprint:by('Sprint_Loop','Sprint'),
       crouchIdle:by('Crouch_Idle_Loop','Crouch Idle','Crouch'),
       crouchWalk:by('Crouch_Fwd_Loop','Crouch Walk'),
-      jumpStart:by('Jump_Start','Jump Start','NinjaJump_Start'),
-      jumpLoop:by('Jump_Loop','Jump Loop','NinjaJump_Idle_Loop','Jump'),
-      jumpLand:by('Jump_Land','Jump Land','NinjaJump_Land'),
+      jumpStart:by('Jump_Start','NinjaJump_Start','Jump Start'),
+      jumpLoop:by('Jump_Loop','NinjaJump_Idle_Loop','Jump Loop','Jump'),
+      jumpLand:by('Jump_Land','NinjaJump_Land','Jump Land'),
       roll:by('Roll','RollForward'),
       punchJab:by('Punch_Jab','Punch Jab'),
       punchCross:by('Punch_Cross','Punch Cross'),
       heavy:by('Melee_Hook','Hook','Heavy'),
       hit:by('Hit_Chest','Hit_Knockback','Hit'),
       interact:by('Interact'),
-      climb:by('ClimbUp_1m','Climb')
+      climb:by('ClimbUp_1m','Climb'),
+      slideStart:by('Slide_Start'),
+      slideLoop:by('Slide_Loop'),
+      slideExit:by('Slide_Exit')
     };
 
     let current=null;
     let lockedUntil=0;
     let prevY=player.position.y;
+    let wasAirborne=false;
 
     function play(g,loop=true,speed=1){
       if(!g)return false;
@@ -170,10 +276,10 @@
       G.playAttack=(type='light')=>{
         originalAttack?.(type);
         lockedUntil=performance.now()+(type==='heavy'?760:480);
-        if(type==='heavy') play(clips.heavy||clips.punchCross||clips.punchJab,false,1);
+        if(type==='heavy')play(clips.heavy||clips.punchCross||clips.punchJab,false,1);
         else{
           combo=(combo+1)%2;
-          play(combo?clips.punchJab:clips.punchCross,false,1.05);
+          play(combo?clips.punchJab:clips.punchCross,false,1.04);
         }
       };
 
@@ -182,13 +288,26 @@
         const st=G.getStealthState?.()||{speed:0,crouching:false,running:false};
         const dy=player.position.y-prevY;
         prevY=player.position.y;
+        const airborne=Math.abs(dy)>.012;
 
-        if(Math.abs(dy)>.018) play(dy>0?(clips.jumpStart||clips.jumpLoop):(clips.jumpLoop||clips.jumpLand),false,1);
-        else if(st.crouching) play(st.speed>.22?(clips.crouchWalk||clips.crouchIdle):clips.crouchIdle,true,st.speed>.22?1:.9);
-        else if(st.speed>5.6) play(clips.sprint||clips.jog||clips.walk,true,1.02);
-        else if(st.speed>2) play(clips.jog||clips.walk,true,.94);
-        else if(st.speed>.3) play(clips.walk||clips.jog,true,.9);
-        else play(clips.idle,true,1);
+        if(airborne){
+          wasAirborne=true;
+          play(dy>0?(clips.jumpStart||clips.jumpLoop):(clips.jumpLoop||clips.jumpLand),false,1);
+        }else if(wasAirborne){
+          wasAirborne=false;
+          lockedUntil=performance.now()+180;
+          play(clips.jumpLand||clips.idle,false,1);
+        }else if(st.crouching){
+          play(st.speed>.22?(clips.crouchWalk||clips.crouchIdle):clips.crouchIdle,true,st.speed>.22?1:.9);
+        }else if(st.speed>5.6){
+          play(clips.sprint||clips.jog||clips.walk,true,1.02);
+        }else if(st.speed>2){
+          play(clips.jog||clips.walk,true,.94);
+        }else if(st.speed>.3){
+          play(clips.walk||clips.jog,true,.9);
+        }else{
+          play(clips.idle,true,1);
+        }
       });
     }
 
@@ -196,19 +315,15 @@
     fill.parent=player;
     fill.diffuse=new BABYLON.Color3(.72,.82,1);
     fill.specular=new BABYLON.Color3(.08,.08,.1);
-    fill.intensity=.5;
-    fill.range=5;
+    fill.intensity=.42;
+    fill.range=4.5;
 
     window.UP_MODEL={
-      loaded:true,
-      ready:true,
+      loaded:true,ready:true,
       rigged:(result.skeletons||[]).length>0,
       animated:groups.length>0,
-      file:loadedFile,
-      root:importRoot,
-      scale,
-      groups,
-      clips
+      animationSource:ualGroups.length?'UAL1+UAL2':'native',
+      file:loadedFile,root:importRoot,scale,groups,clips
     };
 
     document.body.classList.remove('glb-player-loading','glb-player-fallback');
@@ -217,6 +332,7 @@
     console.info('[Under Pressure] player active',{
       file:loadedFile,
       skeletons:(result.skeletons||[]).length,
+      animationSource:window.UP_MODEL.animationSource,
       animations:groups.map(g=>g.name),
       scale
     });
