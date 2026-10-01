@@ -258,11 +258,20 @@ scene.onBeforeRenderObservable.add(()=>{
  const forward=camera.getForwardRay().direction.clone();forward.y=0;forward.normalize();
  const right=new B.Vector3(forward.z,0,-forward.x);
  let x=Number(keys.has("KeyD"))-Number(keys.has("KeyA")),z=Number(keys.has("KeyW"))-Number(keys.has("KeyS"));
- const pad=navigator.getGamepads?.()?.find(p=>p?.connected);
+ const pad=Array.from(navigator.getGamepads?.()||[]).find(p=>p?.connected);
  if(pad){x+=(Math.abs(pad.axes[0])>.18?pad.axes[0]:0);z-=(Math.abs(pad.axes[1])>.18?pad.axes[1]:0)}
+ // Controller: A jump, B dodge, X jab, Y cross, LB crouch, RB sprint.
+ const down=i=>!!pad?.buttons?.[i]?.pressed;
+ if(pad){
+  for(const [index,key] of [[0,"Space"],[1,"KeyQ"],[2,"KeyJ"],[3,"KeyK"],[4,"ControlLeft"]]){
+   const tag="Pad"+index;
+   if(down(index)&&!keys.has(tag)){edge.add(key);keys.add(tag)}
+   if(!down(index))keys.delete(tag);
+  }
+ }
  const wish=right.scale(x).add(forward.scale(z));const moving=wish.lengthSquared()>.001;
  if(moving)wish.normalize();
- const speed=keys.has("ControlLeft")||keys.has("ControlRight")||keys.has("KeyC")?1.45:(keys.has("ShiftLeft")||keys.has("ShiftRight")?5.2:2.8);
+ const speed=(keys.has("ControlLeft")||keys.has("ControlRight")||keys.has("KeyC")||down(4))?1.45:((keys.has("ShiftLeft")||keys.has("ShiftRight")||down(5))?5.2:2.8);
  const targetVelocity=moving?wish.scale(speed):B.Vector3.Zero();
  velocity=B.Vector3.Lerp(velocity,targetVelocity,1-Math.exp(-(moving?13:17)*dt));
  if(moving&&!roll&&!actionState){yaw=Math.atan2(wish.x,wish.z);const diff=Math.atan2(Math.sin(yaw-collider.rotation.y),Math.cos(yaw-collider.rotation.y));collider.rotation.y+=diff*Math.min(1,dt*13)}
@@ -318,6 +327,8 @@ scene.onBeforeRenderObservable.add(()=>{
  if(!roll&&!actionState){
    let next;
    if(!grounded){next=now-jumpTime<260?C.jumpStart:(C.jumpLoop||C.neutral)}
+   else if(!lastGrounded&&C.jumpLand){jumpLandedUntil=now+180;next=C.jumpLand}
+   else if(now<jumpLandedUntil&&C.jumpLand)next=C.jumpLand
    else if(keys.has("ControlLeft")||keys.has("ControlRight")||keys.has("KeyC"))next=(velocity.length()> .24?C.crouchMove:C.crouch)||C.neutral;
    else if(velocity.length()>4.2)next=C.run||C.jog||C.walk;
    else if(velocity.length()>2.9)next=C.jog||C.walk;
