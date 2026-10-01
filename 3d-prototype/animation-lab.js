@@ -91,7 +91,7 @@ function visualSoleY(){
  // and the changing full-body pose during the roll.
  let lowest=Infinity;
  for(const m of meshes){
-   m.refreshBoundingInfo(true);
+   try{m.refreshBoundingInfo(true)}catch(e){console.warn('[Lab] bounds refresh skipped',m.name,e);continue;}
    m.computeWorldMatrix(true);
    const y=m.getBoundingInfo()?.boundingBox?.minimumWorld?.y;
    if(Number.isFinite(y))lowest=Math.min(lowest,y);
@@ -171,6 +171,7 @@ scene.onBeforeRenderObservable.add(()=>{
  prevGrounded=grounded;
  // Sample the lowest SKINNED MESH vertex bounds, not ankle joints.
  // Apply to planted idle and roll; keep collider physics untouched.
+ const standingIdle=active===plantedIdle&&!moving&&grounded&&!locked;
  const groundVisual=(standingIdle||rolling)&&grounded;
  let soleY=null;
  if(groundVisual){
@@ -189,5 +190,5 @@ scene.onBeforeRenderObservable.add(()=>{
 });
 idlePose();
 report('Modelo carregado: '+groups.length+' animações. Verifique Idle em prévia.');
-engine.runRenderLoop(()=>scene.render());window.addEventListener('resize',()=>engine.resize());
+engine.runRenderLoop(()=>{try{scene.render()}catch(err){console.error('[Animation Lab] Render error',err);report('ERRO DE EXECUÇÃO: '+err.message)}});window.addEventListener('resize',()=>engine.resize());
 })();
