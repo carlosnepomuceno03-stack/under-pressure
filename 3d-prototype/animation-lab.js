@@ -69,7 +69,8 @@ function idlePose(){
  mode='Idle (pose temporária)';
 }
 const play=(g,loop=true,speed=1)=>{
- if(!g||active===g)return;
+ if(!g)return;
+ if(active===g){if(!g.isPlaying){g.stop();g.start(loop,speed,g.from,g.to,false)}return;}
  for(const a of groups)a.stop();
  active=g;g.start(loop,speed,g.from,g.to,false);mode=g.name;
 };
