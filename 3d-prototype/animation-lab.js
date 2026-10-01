@@ -42,7 +42,7 @@ for(const m of meshes){m.computeWorldMatrix(true);const bb=m.getBoundingInfo().b
 const scale=2.08/(max.y-min.y);root.scaling.setAll(scale);root.computeWorldMatrix(true);
 min=new B.Vector3(Infinity,Infinity,Infinity);
 for(const m of meshes){m.computeWorldMatrix(true);min=B.Vector3.Minimize(min,m.getBoundingInfo().boundingBox.minimumWorld)}
-const footOffset=collider.position.y-1.04-min.y;root.position.y=footOffset;
+const footOffset=-1.04-min.y;root.position.y=footOffset;
 root.parent=collider;
 const get=(name)=>groups.find(g=>g.name.toLowerCase()===name.toLowerCase());
 const clip={idle:get('Idle_Loop'),walk:get('Walk_Loop'),jog:get('Jog_Fwd_Loop'),sprint:get('Sprint_Loop'),crouch:get('Crouch_Idle_Loop'),crouchWalk:get('Crouch_Fwd_Loop'),jumpStart:get('Jump_Start'),jumpLoop:get('Jump_Loop'),jumpLand:get('Jump_Land'),roll:get('Roll'),jab:get('Punch_Jab'),cross:get('Punch_Cross'),climb:get('ClimbUp_1m')};
@@ -92,7 +92,7 @@ scene.onBeforeRenderObservable.add(()=>{
    locked=true;actionUntil=now+650;play(clip.roll,false);
  }
  if(keys.has('KeyJ')&&grounded&&!locked){locked=true;actionUntil=now+430;play(clip.jab||clip.cross,false)}
- // Heavy is intentionally blocked until a distinct clip exists.
+ // Heavy and kick deliberately remain unbound until their distinct clips are exported.
  if(now>=actionUntil&&locked){locked=false;root.rotation.y=Math.PI}
  if(!locked){
   if(!grounded){if(active!==clip.jumpStart||!active?.isPlaying)play(clip.jumpLoop||clip.idle,true)}
