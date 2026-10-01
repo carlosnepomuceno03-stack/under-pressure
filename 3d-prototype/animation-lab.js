@@ -26,7 +26,9 @@ let yaw=0,cameraOrbit=0,vertical=0,grounded=true,mode='idle',actionUntil=0;
 const camera=new B.ArcRotateCamera('cam',Math.PI/2,1.25,7,collider.position,scene);camera.lowerRadiusLimit=4;camera.upperRadiusLimit=12;camera.wheelDeltaPercentage=.02;camera.attachControl(canvas,true);
 camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');
 document.querySelector('#reset').onclick=()=>{collider.position.set(0,1.09,5);vertical=0;cameraOrbit=0};
-document.querySelector('#camera').onclick=()=>{cameraOrbit+=Math.PI/2};
+document.querySelector('#camera').onclick=()=>{camera.alpha+=Math.PI/2};
+let modelFacingOffset=Math.PI;
+document.querySelector('#facing').onclick=()=>{modelFacingOffset=(modelFacingOffset+Math.PI)%(Math.PI*2);root.rotation.y=modelFacingOffset;};
 window.addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown'].includes(e.code))e.preventDefault();keys.add(e.code);});
 window.addEventListener('keyup',e=>keys.delete(e.code));
 let container;
@@ -44,6 +46,7 @@ min=new B.Vector3(Infinity,Infinity,Infinity);
 for(const m of meshes){m.computeWorldMatrix(true);min=B.Vector3.Minimize(min,m.getBoundingInfo().boundingBox.minimumWorld)}
 const footOffset=-1.04-min.y;root.position.y=footOffset;
 root.parent=collider;
+root.rotation.y=modelFacingOffset;
 const get=(name)=>groups.find(g=>g.name.toLowerCase()===name.toLowerCase());
 const clip={idle:get('Idle_Loop'),walk:get('Walk_Loop'),jog:get('Jog_Fwd_Loop'),sprint:get('Sprint_Loop'),crouch:get('Crouch_Idle_Loop'),crouchWalk:get('Crouch_Fwd_Loop'),jumpStart:get('Jump_Start'),jumpLoop:get('Jump_Loop'),jumpLand:get('Jump_Land'),roll:get('Roll'),jab:get('Punch_Jab'),cross:get('Punch_Cross'),climb:get('ClimbUp_1m')};
 groups.forEach(g=>{const o=document.createElement('option');o.value=g.name;o.textContent=g.name;preview.append(o)});
@@ -58,7 +61,7 @@ const forward=()=>new B.Vector3(Math.sin(yaw),0,Math.cos(yaw));
 const tryAction=(key,g,duration,turn=0)=>{
  if(!keys.has(key)||locked||selected||!g)return;
  locked=true;actionUntil=performance.now()+duration;
- root.rotation.y=turn;
+ root.rotation.y=modelFacingOffset+turn;
  play(g,false);
 };
 let jumpUsed=false,prevGrounded=true;
@@ -66,13 +69,17 @@ scene.onBeforeRenderObservable.add(()=>{
  const dt=Math.min(engine.getDeltaTime()/1000,.035),now=performance.now();
  if(selected)return;
  let x=Number(keys.has('KeyD'))-Number(keys.has('KeyA')),z=Number(keys.has('KeyW'))-Number(keys.has('KeyS'));
- const move=new B.Vector3(x,0,-z),moving=move.lengthSquared()>.001;
+ // Use the REAL camera forward vector, projected onto the ground.
+ // W always moves AWAY from the camera; S comes toward it, A/D strafe camera-relative.
+ const cameraForward=camera.getForwardRay().direction.clone();
+ cameraForward.y=0;
+ cameraForward.normalize();
+ const cameraRight=new B.Vector3(-cameraForward.z,0,cameraForward.x);
+ const move=cameraRight.scale(x).add(cameraForward.scale(z));
+ const moving=move.lengthSquared()>.001;
  const speed=keys.has('KeyC')?1.4:keys.has('ShiftLeft')?5.5:2.6;
  if(moving){
    move.normalize();
-   const camYaw=camera.alpha-Math.PI/2;
-   const co=Math.cos(camYaw),si=Math.sin(camYaw),dx=move.x*co-move.z*si,dz=move.x*si+move.z*co;
-   move.set(dx,0,dz);
    yaw=Math.atan2(move.x,move.z);
  }
  // Ground check: ray hits ONLY the solid world, never the imported visual mesh.
@@ -93,7 +100,7 @@ scene.onBeforeRenderObservable.add(()=>{
  }
  if(keys.has('KeyJ')&&grounded&&!locked){locked=true;actionUntil=now+430;play(clip.jab||clip.cross,false)}
  // Heavy and kick deliberately remain unbound until their distinct clips are exported.
- if(now>=actionUntil&&locked){locked=false;root.rotation.y=Math.PI}
+ if(now>=actionUntil&&locked){locked=false;root.rotation.y=modelFacingOffset}
  if(!locked){
   if(!grounded){if(active!==clip.jumpStart||!active?.isPlaying)play(clip.jumpLoop||clip.idle,true)}
   else if(!prevGrounded){play(clip.jumpLand||clip.idle,false);locked=true;actionUntil=now+160}
