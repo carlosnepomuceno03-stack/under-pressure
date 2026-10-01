@@ -183,7 +183,7 @@ scene.onBeforeRenderObservable.add(()=>{
  }
  root.position.y=B.Scalar.Lerp(root.position.y,targetRootY,Math.min(1,dt*(standingIdle?16:9)));
  const desired=collider.position.add(new B.Vector3(0,.65,0));camera.target=B.Vector3.Lerp(camera.target,desired,Math.min(1,dt*8));
- report('Animação: '+(active?.name||'nenhuma')+'\nPosição: '+collider.position.y.toFixed(2)+' m | No chão: '+grounded+'\nMovimento: '+(moving?'sim':'não')+' | Clipes: '+groups.length+'\nK: golpe forte — aguardando animação própria\nChute — aguardando exportação');
+ report('Animação: '+(active?.name||'nenhuma')+'\nPosição: '+collider.position.y.toFixed(2)+' m | No chão: '+grounded+'\nMovimento: '+(moving?'sim':'não')+' | Clipes: '+groups.length+'\nOssos dos pés: '+selectedFeet.length+' | Pé Y: '+(ankleMin===null?'--':ankleMin.toFixed(2))+' | Ajuste: '+(root.position.y-footOffset).toFixed(2)+'\nK: golpe forte — aguardando animação própria\nChute — aguardando exportação');
 });
 calibrateIdleFeet();
 idlePose();
