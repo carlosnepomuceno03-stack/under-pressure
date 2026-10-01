@@ -1,6 +1,18 @@
 (()=>{
   const PATH='./3d-prototype/assets/characters/player/';
-  const FILES=['rigged-model.glb','player_meshy.glb'];
+  const STATIC_TEST=new URLSearchParams(location.search).has('staticplayer');
+  const FILES=STATIC_TEST?['player_meshy.glb','rigged-model.glb']:['rigged-model.glb','player_meshy.glb'];
+  let testPanel=null;
+  function status(message){
+    console.info('[Under Pressure] model:',message);
+    if(!STATIC_TEST)return;
+    if(!testPanel){
+      testPanel=document.createElement('div');
+      Object.assign(testPanel.style,{position:'fixed',top:'12px',left:'12px',zIndex:'99999',maxWidth:'min(85vw,480px)',padding:'12px 16px',background:'#10151fe8',color:'#b7ffca',font:'bold 14px monospace',border:'1px solid #5edb88',borderRadius:'9px',pointerEvents:'none',whiteSpace:'pre-wrap'});
+      document.body.appendChild(testPanel);
+    }
+    testPanel.textContent='TESTE DO PERSONAGEM\n'+message;
+  }
   const ANIM_FILE='player_ual_anims.glb';
   const TARGET_HEIGHT=2.18;
   const VISUAL_FEET_Y=-1.015; // capsule bottom is ~-1.05: keep soles just above collision floor
@@ -10,7 +22,14 @@
       setTimeout(boot,50);
       return;
     }
-    loadPlayer();
+    loadPlayer().catch(err=>{
+      console.error('[Under Pressure] model initialization failed',err);
+      const original=window.UP3D?.scene?.getTransformNodeByName('rigRoot');
+      original?.setEnabled(true);
+      document.body.classList.remove('glb-player-loading');
+      document.body.classList.add('glb-player-fallback');
+      status('ERRO: '+(err?.message||err)+'\nPersonagem anterior restaurado.');
+    });
   }
 
   function readableMaterial(scene,mesh){
@@ -153,6 +172,7 @@
     const player=G.player;
     const oldRig=scene.getTransformNodeByName('rigRoot');
 
+    status('Carregando arquivo GLB...');
     oldRig?.setEnabled(false);
     document.body.classList.add('glb-player-loading');
 
@@ -161,6 +181,7 @@
       try{
         result=await BABYLON.SceneLoader.ImportMeshAsync('',PATH,file,scene);
         loadedFile=file;
+        status('Arquivo importado: '+file+'\nCalculando tamanho e posição...');
         break;
       }catch(e){ lastErr=e; }
     }
@@ -170,6 +191,7 @@
       document.body.classList.remove('glb-player-loading');
       document.body.classList.add('glb-player-fallback');
       console.error('[Under Pressure] player load failed',lastErr);
+      status('Nenhum GLB carregou. '+(lastErr?.message||lastErr)+'\nPersonagem anterior restaurado.');
       return;
     }
 
@@ -215,7 +237,7 @@
     importRoot.parent=player;
 
     // Lightweight UAL animation-only GLB (~410 KB), retargeted onto the good AnnoMotion rig.
-    const ualGroups=await loadUALAnimations(scene,result);
+    const ualGroups=STATIC_TEST?[]:await loadUALAnimations(scene,result);
     const groups=ualGroups.length?ualGroups:nativeGroups;
 
     const by=(...names)=>groups.find(g=>{
@@ -328,6 +350,7 @@
 
     document.body.classList.remove('glb-player-loading','glb-player-fallback');
     document.body.classList.add('glb-player-loaded');
+    status('OK: '+loadedFile+'\nAltura: '+TARGET_HEIGHT+'m\nRig: '+((result.skeletons||[]).length?'SIM':'NÃO (esperado nesta etapa)')+'\nAnimações: '+groups.length+'\nEscala: '+scale.toFixed(3));
     window.dispatchEvent(new CustomEvent('up-player-ready'));
     console.info('[Under Pressure] player active',{
       file:loadedFile,
