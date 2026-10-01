@@ -313,13 +313,24 @@
       play(clips.idle||groups[0],true,1);
 
       const originalRoll=G.startRoll?.bind(G);
+      let rollVisualActive=false;
       G.startRoll=(dir)=>{
         const ok=originalRoll?.(dir);
         if(!ok)return false;
         lockedUntil=performance.now()+650;
+        // UAL Roll was authored facing opposite the game's standard visual axis.
+        // Change ONLY the imported visual during dodge; collider follows the input snapshot.
+        rollVisualActive=!!clips.roll;
+        if(rollVisualActive)importRoot.rotation.y=0;
         play(clips.roll,false,1);
         return true;
       };
+      scene.onBeforeRenderObservable.add(()=>{
+        if(rollVisualActive&&!G.isRolling?.()){
+          rollVisualActive=false;
+          importRoot.rotation.y=Math.PI;
+        }
+      });
 
       const originalAttack=G.playAttack?.bind(G);
       let combo=0;
