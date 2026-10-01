@@ -2,10 +2,11 @@
   const PATH='./3d-prototype/assets/characters/player/';
   const STATIC_TEST=new URLSearchParams(location.search).has('staticplayer');
   const FILES=STATIC_TEST?['player_meshy.glb','rigged-model.glb']:['rigged-model.glb','player_meshy.glb'];
+  const DEBUG_PLAYER=STATIC_TEST||new URLSearchParams(location.search).has('debugplayer');
   let testPanel=null;
   function status(message){
     console.info('[Under Pressure] model:',message);
-    if(!STATIC_TEST)return;
+    if(!DEBUG_PLAYER)return;
     if(!testPanel){
       testPanel=document.createElement('div');
       Object.assign(testPanel.style,{position:'fixed',top:'12px',left:'12px',zIndex:'99999',maxWidth:'min(85vw,480px)',padding:'12px 16px',background:'#10151fe8',color:'#b7ffca',font:'bold 14px monospace',border:'1px solid #5edb88',borderRadius:'9px',pointerEvents:'none',whiteSpace:'pre-wrap'});
@@ -237,6 +238,7 @@
     importRoot.parent=player;
 
     // Lightweight UAL animation-only GLB (~410 KB), retargeted onto the good AnnoMotion rig.
+    status('Modelo: '+loadedFile+'\nRig: '+(result.skeletons||[]).length+' skeleton(s)\nClipes originais: '+nativeGroups.length+'\nCarregando animações...');
     const ualGroups=STATIC_TEST?[]:await loadUALAnimations(scene,result);
     const groups=ualGroups.length?ualGroups:nativeGroups;
 
@@ -350,7 +352,7 @@
 
     document.body.classList.remove('glb-player-loading','glb-player-fallback');
     document.body.classList.add('glb-player-loaded');
-    status('OK: '+loadedFile+'\nAltura: '+TARGET_HEIGHT+'m\nRig: '+((result.skeletons||[]).length?'SIM':'NÃO (esperado nesta etapa)')+'\nAnimações: '+groups.length+'\nEscala: '+scale.toFixed(3));
+    status('OK: '+loadedFile+'\nAltura: '+TARGET_HEIGHT+'m\nRig: '+((result.skeletons||[]).length?'SIM':'NÃO')+'\nAnimações: '+groups.length+' (UAL: '+ualGroups.length+', nativas: '+nativeGroups.length+')\nEscala: '+scale.toFixed(3));
     window.dispatchEvent(new CustomEvent('up-player-ready'));
     console.info('[Under Pressure] player active',{
       file:loadedFile,
