@@ -27,7 +27,8 @@ const camera=new B.ArcRotateCamera('cam',Math.PI/2,1.25,7,collider.position,scen
 camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');
 document.querySelector('#reset').onclick=()=>{collider.position.set(0,1.09,5);vertical=0;cameraOrbit=0};
 document.querySelector('#camera').onclick=()=>{camera.alpha+=Math.PI/2};
-let modelFacingOffset=Math.PI;
+// GLB's baked animations face the opposite direction from the old procedural rig.
+let modelFacingOffset=0;
 document.querySelector('#facing').onclick=()=>{modelFacingOffset=(modelFacingOffset+Math.PI)%(Math.PI*2);root.rotation.y=modelFacingOffset;};
 window.addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown'].includes(e.code))e.preventDefault();keys.add(e.code);});
 window.addEventListener('keyup',e=>keys.delete(e.code));
@@ -74,7 +75,7 @@ scene.onBeforeRenderObservable.add(()=>{
  const cameraForward=camera.getForwardRay().direction.clone();
  cameraForward.y=0;
  cameraForward.normalize();
- const cameraRight=new B.Vector3(-cameraForward.z,0,cameraForward.x);
+ const cameraRight=new B.Vector3(cameraForward.z,0,-cameraForward.x);
  const move=cameraRight.scale(x).add(cameraForward.scale(z));
  const moving=move.lengthSquared()>.001;
  const speed=keys.has('KeyC')?1.4:keys.has('ShiftLeft')?5.5:2.6;
