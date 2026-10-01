@@ -284,10 +284,27 @@
     let lockedUntil=0;
     let prevY=player.position.y;
     let wasAirborne=false;
+    let airStarted=0;
+    let jumpLoopStarted=false;
+    let wasClimbing=false;
+    // Foot joint height changes with poses; visually align soles to player collider.
+    const feet=['LeftFoot','RightFoot'].map(name=>(result.transformNodes||[]).find(n=>n.name===name)).filter(Boolean);
+    let referenceFoot=null;
+    const originalHeight=importRoot.position.y;
+    function alignFeet(){
+      if(!feet.length)return;
+      const inv=player.getWorldMatrix().clone().invert();
+      const ys=feet.map(n=>BABYLON.Vector3.TransformCoordinates(n.getAbsolutePosition(),inv).y);
+      const bottom=Math.min(...ys);
+      if(!Number.isFinite(bottom))return;
+      if(referenceFoot===null)referenceFoot=bottom;
+      const correction=BABYLON.Scalar.Clamp(referenceFoot-bottom,-.40,.40);
+      importRoot.position.y=BABYLON.Scalar.Lerp(importRoot.position.y,originalHeight+correction,.22);
+    }
 
     function play(g,loop=true,speed=1){
       if(!g)return false;
-      if(current===g&&g.isPlaying)return true;
+      if(current===g)return true;
       for(const x of [...groups,...nativeGroups])if(x!==g&&x.isPlaying)x.stop();
       current=g;
       g.start(loop,speed,g.from,g.to,false);
@@ -319,30 +336,44 @@
       };
 
       scene.onBeforeRenderObservable.add(()=>{
-        if(performance.now()<lockedUntil)return;
+        const now=performance.now();
+        const motion=G.getMotionState?.()||{};
         const st=G.getStealthState?.()||{speed:0,crouching:false,running:false};
+        const climbing=['climb','hang','mantle'].includes(motion.parkourState);
         const dy=player.position.y-prevY;
         prevY=player.position.y;
-        const airborne=Math.abs(dy)>.012;
+        const airborne=motion.grounded===undefined?Math.abs(dy)>.012:(!motion.grounded&&motion.parkourState==='normal');
 
+        if(climbing){
+          if(!wasClimbing){wasClimbing=true;play(clips.climb||clips.crouchWalk||clips.idle,true,.95);}
+          alignFeet();return;
+        }
+        if(wasClimbing){wasClimbing=false;play(clips.idle,true);}
+        if(now<lockedUntil){alignFeet();return;}
         if(airborne){
-          wasAirborne=true;
-          play(dy>0?(clips.jumpStart||clips.jumpLoop):(clips.jumpLoop||clips.jumpLand),false,1);
+          if(!wasAirborne){
+            wasAirborne=true;airStarted=now;jumpLoopStarted=false;
+            play(clips.jumpStart||clips.jumpLoop||clips.idle,false,1);
+          }else if(!jumpLoopStarted&&now-airStarted>380){
+            jumpLoopStarted=true;
+            play(clips.jumpLoop||clips.idle,true,1);
+          }
         }else if(wasAirborne){
-          wasAirborne=false;
-          lockedUntil=performance.now()+180;
+          wasAirborne=false;jumpLoopStarted=false;
+          lockedUntil=now+200;
           play(clips.jumpLand||clips.idle,false,1);
         }else if(st.crouching){
-          play(st.speed>.22?(clips.crouchWalk||clips.crouchIdle):clips.crouchIdle,true,st.speed>.22?1:.9);
+          play(st.speed>.22?(clips.crouchWalk||clips.crouchIdle||clips.idle):(clips.crouchIdle||clips.idle),true,st.speed>.22?1:.9);
         }else if(st.speed>5.6){
-          play(clips.sprint||clips.jog||clips.walk,true,1.02);
+          play(clips.sprint||clips.jog||clips.walk||clips.idle,true,1.02);
         }else if(st.speed>2){
-          play(clips.jog||clips.walk,true,.94);
+          play(clips.jog||clips.walk||clips.idle,true,.94);
         }else if(st.speed>.3){
-          play(clips.walk||clips.jog,true,.9);
+          play(clips.walk||clips.jog||clips.idle,true,.9);
         }else{
-          play(clips.idle,true,1);
+          play(clips.idle||groups[0],true,1);
         }
+        alignFeet();
       });
     }
 
