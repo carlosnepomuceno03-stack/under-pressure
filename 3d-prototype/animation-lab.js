@@ -45,7 +45,7 @@ for(const m of meshes){m.computeWorldMatrix(true);const bb=m.getBoundingInfo().b
 const scale=2.08/(max.y-min.y);root.scaling.setAll(scale);root.computeWorldMatrix(true);
 min=new B.Vector3(Infinity,Infinity,Infinity);
 for(const m of meshes){m.computeWorldMatrix(true);min=B.Vector3.Minimize(min,m.getBoundingInfo().boundingBox.minimumWorld)}
-const footOffset=-1.04-min.y-.20;root.position.y=footOffset;
+const footOffset=-1.04-min.y;root.position.y=footOffset;
 root.parent=collider;
 root.rotation.y=modelFacingOffset;
 const get=(name)=>groups.find(g=>g.name.toLowerCase()===name.toLowerCase());
@@ -53,25 +53,61 @@ const clip={idle:get('Idle_Loop'),walk:get('Walk_Loop'),jog:get('Jog_Fwd_Loop'),
 groups.forEach(g=>{const o=document.createElement('option');o.value=g.name;o.textContent=g.name;preview.append(o)});
 let active=null,locked=false,lastAction='',selected='';
 let rolling=false,rollDirection=new B.Vector3(0,0,1),rollElapsed=0,rollDuration=.65;
+const skeletonFeet=container.transformNodes.filter(n=>/^(leftfoot|rightfoot|mixamorig.*foot)$/i.test(n.name||''));
+const selectedFeet=skeletonFeet.length>=2?skeletonFeet.slice(0,2):
+ (container.skeletons||[]).flatMap(sk=>sk.bones).filter(b=>/^(leftfoot|rightfoot|mixamorig.*foot)$/i.test(b.name||'')).map(b=>b.getTransformNode?.()).filter(Boolean).slice(0,2);
+const localFootHeights=()=>{
+ root.computeWorldMatrix(true);
+ const inverse=collider.getWorldMatrix().clone().invert();
+ return selectedFeet.map(n=>{n.computeWorldMatrix(true);return B.Vector3.TransformCoordinates(n.getAbsolutePosition(),inverse)});
+};
+let idleFrame=null,idleHeight=footOffset,pausedIdle=false;
+function selectIdleFrame(){
+ const source=clip.walk||clip.idle;
+ if(!source)return;
+ source.start(false,1,source.from,source.to,false);
+ if(selectedFeet.length===2){
+   let best=Infinity;
+   for(let k=0;k<=24;k++){
+     const frame=source.from+(source.to-source.from)*k/24;
+     source.goToFrame(frame);
+     const foot=localFootHeights();
+     const heightDiff=Math.abs(foot[0].y-foot[1].y);
+     const separation=Math.hypot(foot[0].x-foot[1].x,foot[0].z-foot[1].z);
+     const score=heightDiff*2+Math.abs(separation-.23)*.4;
+     if(score<best){best=score;idleFrame=frame;}
+   }
+ }else{idleFrame=source.from+(source.to-source.from)*.5;}
+ source.goToFrame(idleFrame);
+ const foot=localFootHeights();
+ if(foot.length){
+   const lowest=Math.min(...foot.map(v=>v.y));
+   idleHeight=footOffset+B.Scalar.Clamp(-.94-lowest,-.35,.45);
+ }
+ source.stop();
+ report('Postura neutra calibrada: '+(selectedFeet.length===2?'pelos 2 pés':'quadro central; sem ossos dos pés'));
+}
 let previousQ=false,previousJ=false;
 // The exported Idle_Loop contains a rest/T-pose. Freeze a natural frame
 // from the baked walk for idle until we replace Idle_Loop at source.
 function idlePose(){
  const source=clip.walk||clip.idle;
  if(!source)return;
- if(active!==source||source.isPlaying){
+ if(!pausedIdle||active!==source||source.isPlaying){
    for(const a of groups)a.stop();
    active=source;
    source.start(false,1,source.from,source.to,false);
-   source.goToFrame(source.from+(source.to-source.from)*.23);
+   source.goToFrame(idleFrame??source.from);
    source.pause();
+   pausedIdle=true;
  }
- mode='Idle (pose temporária)';
+ mode='Idle (postura calibrada)';
 }
 const play=(g,loop=true,speed=1)=>{
  if(!g)return;
  if(active===g){if(!g.isPlaying){g.stop();g.start(loop,speed,g.from,g.to,false)}return;}
  for(const a of groups)a.stop();
+ pausedIdle=false;
  active=g;g.start(loop,speed,g.from,g.to,false);mode=g.name;
 };
 preview.onchange=()=>{selected=preview.value;active=null; if(selected)play(get(selected),true)};
@@ -85,7 +121,7 @@ const tryAction=(key,g,duration,turn=0)=>{
 let jumpUsed=false,prevGrounded=true;
 scene.onBeforeRenderObservable.add(()=>{
  const dt=Math.min(engine.getDeltaTime()/1000,.035),now=performance.now();
- if(selected)return;
+ if(selected){root.position.y=B.Scalar.Lerp(root.position.y,footOffset,.18);return;}
  let x=Number(keys.has('KeyD'))-Number(keys.has('KeyA')),z=Number(keys.has('KeyW'))-Number(keys.has('KeyS'));
  // Use the REAL camera forward vector, projected onto the ground.
  // W always moves AWAY from the camera; S comes toward it, A/D strafe camera-relative.
@@ -139,9 +175,12 @@ scene.onBeforeRenderObservable.add(()=>{
   else idlePose();
  }
  prevGrounded=grounded;
+ const desiredRootHeight=pausedIdle&&!moving&&grounded&&!rolling?idleHeight:footOffset;
+ root.position.y=B.Scalar.Lerp(root.position.y,desiredRootHeight,Math.min(1,dt*10));
  const desired=collider.position.add(new B.Vector3(0,.65,0));camera.target=B.Vector3.Lerp(camera.target,desired,Math.min(1,dt*8));
  report('Animação: '+(active?.name||'nenhuma')+'\nPosição: '+collider.position.y.toFixed(2)+' m | No chão: '+grounded+'\nMovimento: '+(moving?'sim':'não')+' | Clipes: '+groups.length+'\nK: golpe forte — aguardando animação própria\nChute — aguardando exportação');
 });
+selectIdleFrame();
 idlePose();
 report('Modelo carregado: '+groups.length+' animações. Verifique Idle em prévia.');
 engine.runRenderLoop(()=>scene.render());window.addEventListener('resize',()=>engine.resize());
