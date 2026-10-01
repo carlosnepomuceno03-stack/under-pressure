@@ -263,11 +263,17 @@ scene.onBeforeRenderObservable.add(()=>{
  // Controller: A jump, B dodge, X jab, Y cross, LB crouch, RB sprint.
  const down=i=>!!pad?.buttons?.[i]?.pressed;
  if(pad){
-  for(const [index,key] of [[0,"Space"],[1,"KeyQ"],[2,"KeyJ"],[3,"KeyK"],[4,"ControlLeft"]]){
+  for(const [index,key] of [[0,"Space"],[1,"KeyQ"],[2,"KeyJ"],[3,"KeyK"],[4,"ControlLeft"],[12,"KeyE"]]){
    const tag="Pad"+index;
    if(down(index)&&!keys.has(tag)){edge.add(key);keys.add(tag)}
    if(!down(index))keys.delete(tag);
   }
+ }
+ if(pad?.axes?.length>=4){
+   const lookX=Math.abs(pad.axes[2])>.16?pad.axes[2]:0;
+   const lookY=Math.abs(pad.axes[3])>.16?pad.axes[3]:0;
+   camera.alpha-=lookX*dt*2.4;
+   camera.beta=B.Scalar.Clamp(camera.beta+lookY*dt*1.7,.52,1.53);
  }
  const wish=right.scale(x).add(forward.scale(z));const moving=wish.lengthSquared()>.001;
  if(moving)wish.normalize();
