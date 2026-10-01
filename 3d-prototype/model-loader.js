@@ -249,13 +249,15 @@
     const groups=ualGroups.length?ualGroups:nativeGroups;
     if(!STATIC_TEST&&DEBUG_PLAYER)status('Modelo: '+loadedFile+'\nAnimações UAL: '+ualGroups.length+'\nNativas: '+nativeGroups.length+'\n'+(ualGroups.length?'UAL EXPERIMENTAL':'UAL pausado: rig incompatível'));
 
+    // Prefer the player's own correctly bound idle even when testing other clips.
+    const nativeIdle=nativeGroups.find(g=>/^idle$/i.test(g.name||''))||nativeGroups.find(g=>/^idle/i.test(g.name||''));
     const by=(...names)=>groups.find(g=>{
       const x=(g.name||'').toLowerCase();
       return names.some(n=>x===n.toLowerCase()||x.includes(n.toLowerCase()));
     });
 
     const clips={
-      idle:by('Idle_Loop','Idle'),
+      idle:nativeIdle||by('Idle_Loop','Idle'),
       walk:by('Walk_Loop','Walk'),
       jog:by('Jog_Fwd_Loop','Jog','Run'),
       sprint:by('Sprint_Loop','Sprint'),
@@ -284,7 +286,7 @@
     function play(g,loop=true,speed=1){
       if(!g)return false;
       if(current===g&&g.isPlaying)return true;
-      for(const x of groups)if(x!==g&&x.isPlaying)x.stop();
+      for(const x of [...groups,...nativeGroups])if(x!==g&&x.isPlaying)x.stop();
       current=g;
       g.start(loop,speed,g.from,g.to,false);
       return true;
@@ -359,7 +361,7 @@
 
     document.body.classList.remove('glb-player-loading','glb-player-fallback');
     document.body.classList.add('glb-player-loaded');
-    status('OK: '+loadedFile+'\nAltura: '+TARGET_HEIGHT+'m\nRig: '+((result.skeletons||[]).length?'SIM':'NÃO')+'\nAnimações: '+groups.length+' (UAL: '+ualGroups.length+', nativas: '+nativeGroups.length+')\nEscala: '+scale.toFixed(3));
+    status('OK: '+loadedFile+'\nAltura: '+TARGET_HEIGHT+'m\nRig: '+((result.skeletons||[]).length?'SIM':'NÃO')+'\nAnimações: '+groups.length+' (UAL: '+ualGroups.length+', nativas: '+nativeGroups.length+')\nIdle: '+(clips.idle?.name||'NÃO ENCONTRADO')+'\nEscala: '+scale.toFixed(3));
     window.dispatchEvent(new CustomEvent('up-player-ready'));
     console.info('[Under Pressure] player active',{
       file:loadedFile,
