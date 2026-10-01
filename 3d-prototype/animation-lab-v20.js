@@ -495,7 +495,10 @@ scene.onBeforeRenderObservable.add(()=>{
  }
  if(edge.has("KeyE")&&grounded&&!roll&&!actionState){
    const obstacle=obstacleAhead();
-   if(obstacle&&obstacle.height>.65&&obstacle.height<3.4&&C.climb){
+   if(obstacle&&obstacle.height>1.45&&obstacle.height<3.35){
+     // High walls require a jump and a ledge grab, not instant teleport-climb.
+     vertical=6.35;grounded=false;jumpTime=now;landTimer=0;jumpPhase="start";
+   }else if(obstacle&&obstacle.height>.65&&obstacle.height<=1.45&&C.climb){
      const finish=collider.position.add(obstacle.dir.scale(1.9));
      finish.y=obstacle.top+1.04;
      beginAction("climb",C.climb,.92,obstacle.dir,finish);
