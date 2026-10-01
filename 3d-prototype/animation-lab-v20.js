@@ -386,7 +386,8 @@ function beginHang(found){
 function leaveHang(drop=false){
  actionClip?.stop();actionClip=null;
  actionState="";ledge=null;stopLocomotion();
- if(drop){vertical=-1;grounded=false;ledgeRearm=performance.now()+650}
+ ledgeRearm=performance.now()+650;
+ if(drop){vertical=-1;grounded=false}
 }
 function climbFromHang(){
  if(actionState!=="hang"||!ledge)return;
@@ -513,7 +514,7 @@ scene.onBeforeRenderObservable.add(()=>{
      beginAction("climb",C.climb,.72,obstacle.dir,finish);
    }else{vertical=6.35;grounded=false;jumpTime=now;landTimer=0;jumpPhase="start"}
  }
- if(edge.has("KeyQ")&&grounded&&!roll&&!actionState&&C.roll){
+ if(edge.has("KeyQ")&&grounded&&!roll&&!actionState&&now>ledgeRearm&&C.roll){
    roll=true;rollTimer=0;rollDir=moving?wish.clone():horizontalFacing();
    collider.rotation.y=Math.atan2(rollDir.x,rollDir.z);
    if(overlay){overlay.stop();overlay=null;attackBlend=0}
